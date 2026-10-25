@@ -80,7 +80,7 @@ export class Engine {
     return top ?? { score: { type: 'cp', value: 0 }, best: null };
   }
 
-  // 후보 수 여러 개와 각 점수(둘 차례 쪽 기준), 좋은 순서
+  // 후보 수 여러 개와 각 점수(둘 차례 쪽 기준), 좋은 순서. pv: 엔진이 내다본 수순(UCI)
   candidates(fen, depth, count) {
     return this.exclusive(async () => {
       this.send(`setoption name MultiPV value ${count}`);
@@ -88,15 +88,16 @@ export class Engine {
       const lines = await this.collect(`go depth ${depth}`, (l) => l.startsWith('bestmove'));
       const byRank = new Map();
       for (const l of lines) {
-        const m = /^info .*\bscore (cp|mate) (-?\d+).*? pv (\S+)/.exec(l);
+        const m = /^info .*\bscore (cp|mate) (-?\d+).*? pv (.+)$/.exec(l);
         if (!m || / (lowerbound|upperbound) /.test(l)) continue;
         const rank = Number(/\bmultipv (\d+)/.exec(l)?.[1] ?? 1);
-        byRank.set(rank, { score: { type: m[1], value: Number(m[2]) }, best: m[3] });
+        const pv = m[3].trim().split(/\s+/);
+        byRank.set(rank, { score: { type: m[1], value: Number(m[2]) }, best: pv[0], pv });
       }
       const best = lines.at(-1).split(' ')[1];
       if (best === '(none)') return [];
       const list = [...byRank.entries()].sort((a, b) => a[0] - b[0]).map((e) => e[1]);
-      if (list[0]) list[0].best = best;
+      if (list[0] && list[0].best !== best) Object.assign(list[0], { best, pv: [best] });
       return list;
     });
   }

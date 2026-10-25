@@ -1,4 +1,4 @@
-import { classify, cp, sanOf } from './analyze.js';
+import { classify, cp, sanOf, trimLine } from './analyze.js';
 
 export const LEAD = 4; // 장면 몇 수 전(내 수 기준)부터 두는지
 export const AFTER = 2; // 장면 뒤로 내 수를 몇 수 더 두는지
@@ -28,6 +28,9 @@ export async function buildScenes(engine, game, positions, evals, side, onScene 
       bestSan: await sanOf(engine, p.fen, p.legal, evals[i].best),
       mate: evals[i].score.type === 'mate' && evals[i].score.value > 0 ? evals[i].score.value : null,
       refuteSan: c.kind === 'blunder' && refute ? await sanOf(engine, positions[i + 1].fen, positions[i + 1].legal, refute) : null,
+      // 결과 화면에서 넘겨 볼 수순: 좋은 수부터, 큰 실수면 원래 둔 수 뒤 상대의 응수부터
+      bestLine: trimLine(evals[i].pv, evals[i].score),
+      refuteLine: c.kind === 'blunder' ? trimLine(evals[i + 1].pv, evals[i + 1].score) : null,
     });
     await onScene(scenes.at(-1));
   }

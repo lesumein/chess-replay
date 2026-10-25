@@ -214,24 +214,64 @@ function showResult(scene, result) {
   $('resultTime').textContent = times.join(' · ');
   $('resultTime').hidden = !times.length;
 
-  // 장면 포지션으로 돌아가 화살표로 보여 준다. 버튼으로 끝난 판과 오갈 수 있다.
-  const views = {
-    scene: () => board.set(result.review.fen, [], result.review.last, result.review.arrows),
-    end: () => board.set(result.end.fen, [], result.end.last),
-  };
-  let view = 'scene';
-  views.scene();
-  $('legend').hidden = !result.review.arrows.length;
-  $('legendBad').hidden = !result.review.arrows.some((a) => a.kind === 'bad');
-  $('toggleView').textContent = '끝난 판 보기';
-  $('toggleView').onclick = () => {
-    view = view === 'scene' ? 'end' : 'scene';
-    views[view]();
-    $('toggleView').textContent = view === 'scene' ? '끝난 판 보기' : '장면 보기';
-  };
+  showReview(scene, result.review, result.end);
   $('resultLink').href = `${scene.gameUrl}?move=${scene.ply + 1}`;
   $('result').hidden = false;
   $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// 결과 아래에서 수순을 한 수씩 넘겨 본다.
+// 좋은 수: 장면에서 좋은 수부터 이득이 확정될 때까지 / 둔 수: 내가(또는 원래 게임에서) 둔 수와 상대의 응수 / 끝난 판
+function showReview(scene, review, end) {
+  const { lines } = review;
+  const tabs = [...$('tabs').querySelectorAll('button')];
+  for (const t of tabs) t.hidden = t.dataset.view !== 'end' && !lines[t.dataset.view];
+  let view = lines.good ? 'good' : lines.bad ? 'bad' : 'end';
+  let step = 0; // 0 = 장면 포지션, k = k수 둔 뒤
+
+  const label = (k) => {
+    const ply = scene.ply + k;
+    const n = Math.floor(ply / 2) + 1;
+    if (ply % 2 === 0) return `<i>${n}.</i>`;
+    return k === 0 ? `<i>${n}...</i>` : '';
+  };
+
+  function draw() {
+    tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.view === view)));
+    const line = lines[view];
+    $('stepper').hidden = !line;
+    if (!line) {
+      $('lineText').innerHTML = '<span>이번에 두고 끝난 모습이에요.</span>';
+      board.set(end.fen, [], end.last);
+      return;
+    }
+    const fen = step ? line[step - 1].fen : review.fen;
+    const last = step ? line[step - 1].uci : review.last;
+    const next = line[step];
+    // 다음에 둘 수를 화살표로
+    board.set(fen, [], last, next ? [{ uci: next.uci, kind: view }] : []);
+    $('lineText').innerHTML = line
+      .map((m, k) => `${label(k)}<span class="${k < step - 1 ? 'done' : k === step - 1 ? 'now' : ''}" data-step="${k + 1}">${esc(m.san)}</span>`)
+      .join(' ');
+    $('stepInfo').textContent = `${step} / ${line.length}`;
+    $('prevStep').disabled = step === 0;
+    $('nextStep').disabled = step === line.length;
+  }
+
+  for (const t of tabs) {
+    t.onclick = () => {
+      view = t.dataset.view;
+      step = 0;
+      draw();
+    };
+  }
+  $('prevStep').onclick = () => { step = Math.max(0, step - 1); draw(); };
+  $('nextStep').onclick = () => { step = Math.min(lines[view]?.length ?? 0, step + 1); draw(); };
+  $('lineText').onclick = (e) => {
+    const k = e.target.closest('[data-step]')?.dataset.step;
+    if (k) { step = Number(k); draw(); }
+  };
+  draw();
 }
 
 // ---- 설정 ----

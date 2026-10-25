@@ -84,3 +84,25 @@ export async function findScenes(engine, positions, evals, side) {
   }
   return scenes;
 }
+
+// 결과 화면에서 넘겨 볼 수순의 길이(반수). 메이트는 메이트까지(최대 12).
+const LINE_PLIES = 6;
+
+export function trimLine(pv = [], score = null) {
+  const n = score?.type === 'mate' && score.value > 0 ? Math.min(2 * score.value - 1, 12) : LINE_PLIES;
+  return pv.slice(0, n);
+}
+
+// 수순(UCI)을 따라가며 SAN과 각 수 뒤 포지션을 구한다. 둘 수 없는 수가 나오면 거기서 멈춘다.
+export async function walkLine(engine, fen, ucis) {
+  const steps = [];
+  for (const uci of ucis) {
+    const legal = await engine.legalMoves(fen);
+    if (!legal.includes(uci)) break;
+    const next = await engine.play(fen, uci);
+    const mate = next.check && (await engine.legalMoves(next.fen)).length === 0;
+    steps.push({ uci, san: uciToSan(uci, fen, legal, next.check, mate), fen: next.fen });
+    fen = next.fen;
+  }
+  return steps;
+}

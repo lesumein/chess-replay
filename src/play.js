@@ -1,5 +1,5 @@
 // 장면 하나를 봇과 다시 둔다. 장면이 어디인지는 끝날 때까지 알려 주지 않는다.
-import { cp, sanOf } from './analyze.js';
+import { cp, sanOf, trimLine, walkLine } from './analyze.js';
 import { botMove } from './bot.js';
 import { AFTER, LEAD } from './scenes.js';
 
@@ -56,8 +56,8 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal } = 
   }
   ui.board.set(fen, [], last);
   ui.turn(null);
-  const result = await judge(scene, engine, atScene, timedOut);
-  return { ...result, review: await review(scene, engine, atScene, result.outcome), end: { fen, last } };
+  const { badLine, ...result } = await judge(scene, engine, atScene, timedOut);
+  return { ...result, review: await review(scene, engine, atScene, result.outcome, badLine), end: { fen, last } };
 }
 
 function waitForMove(ui, fen, legal, last, clockMs, onTick, signal) {
@@ -85,18 +85,23 @@ async function judge(scene, engine, atScene, timedOut) {
   const base = { sceneId: scene.id, fake: scene.fake, at: Date.now() };
   if (!atScene) return { ...base, outcome: timedOut ? 'timeout' : 'deviated', text: describe(scene, timedOut ? 'timeout' : 'deviated') };
   let loss = 0;
+  let reply = [];
   if (atScene.uci !== scene.bestUci) {
     const next = await engine.play(atScene.fen, atScene.uci);
-    const after = -cp((await engine.evaluate(next.fen, JUDGE_DEPTH)).score);
-    loss = scene.before - after;
+    const ev = await engine.evaluate(next.fen, JUDGE_DEPTH);
+    loss = scene.before - -cp(ev.score);
+    reply = trimLine(ev.pv, ev.score);
   }
   const userSan = await sanOf(engine, atScene.fen, atScene.legal, atScene.uci);
   const outcome = loss <= OK_LOSS ? 'found' : 'missed';
-  return { ...base, outcome, ms: atScene.ms, text: describe(scene, outcome, userSan) };
+  // 둔 수가 나빴으면 그 뒤 상대의 응수까지 보여 준다
+  const badLine = outcome === 'missed' ? [atScene.uci, ...reply] : null;
+  return { ...base, outcome, ms: atScene.ms, text: describe(scene, outcome, userSan), badLine };
 }
 
-// 끝난 뒤 판에 보여 줄 장면: 원래 게임의 그 포지션, 좋은 수(초록)와 내가 둔 수(빨강)
-async function review(scene, engine, atScene, outcome) {
+// 끝난 뒤 판에 보여 줄 장면: 원래 게임의 그 포지션, 좋은 수(초록)와 내가 둔 수(빨강),
+// 그리고 넘겨 볼 수순 두 줄(좋은 수부터 / 둔 수와 상대의 응수)
+async function review(scene, engine, atScene, outcome, badLine) {
   let fen = scene.startFen;
   for (const uci of scene.line.slice(0, scene.ply - scene.startPly)) ({ fen } = await engine.play(fen, uci));
   const last = scene.ply > scene.startPly ? scene.line[scene.ply - scene.startPly - 1] : null;
@@ -104,7 +109,23 @@ async function review(scene, engine, atScene, outcome) {
   if (!scene.fake) arrows.push({ uci: scene.bestUci, kind: 'good' });
   const mine = atScene?.uci;
   if (mine && mine !== scene.bestUci && (outcome !== 'found' || scene.fake)) arrows.push({ uci: mine, kind: scene.fake && outcome === 'found' ? 'good' : 'bad' });
-  return { fen, last, arrows };
+
+  let good = null;
+  if (!scene.fake) {
+    // 수순을 저장하기 전에 만든 장면은 지금 계산한다
+    let ucis = scene.bestLine;
+    if (!ucis?.length) {
+      const ev = await engine.evaluate(fen, 16);
+      ucis = ev.best === scene.bestUci ? trimLine(ev.pv, ev.score) : [scene.bestUci];
+    }
+    good = await walkLine(engine, fen, ucis);
+  }
+  // 장면까지 못 갔어도, 큰 실수였다면 원래 게임에서 둔 수와 상대의 응수를 보여 준다
+  if (!badLine && !atScene && scene.kind === 'blunder' && scene.refuteLine) {
+    badLine = [scene.line[scene.ply - scene.startPly], ...scene.refuteLine];
+  }
+  const bad = badLine ? await walkLine(engine, fen, badLine) : null;
+  return { fen, last, arrows, lines: { good: good?.length ? good : null, bad: bad?.length ? bad : null } };
 }
 
 // 받침 있는 글자로 끝나는지(SAN 끝 글자를 읽는 소리 기준)

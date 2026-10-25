@@ -74,7 +74,18 @@ async function anyMove(page) {
     await page.waitForSelector('#board .arrow-success');
     assert.ok(await page.$('#board g[data-square="e5"][data-piece="bn"]'), '장면 포지션이 아님');
     await page.screenshot({ path: path.join(SHOTS, 'app-result.png') });
-    await page.click('#toggleView');
+    // 좋은 수 수순: Nxf3+ 다음 상대의 응수, 그다음 이득까지
+    const line = await page.innerText('#lineText');
+    console.log('수순:', line);
+    assert.match(line, /^14\.\.\.\s*Nxf3\+ 15\./);
+    await page.click('#nextStep');
+    await page.waitForSelector('#board g[data-square="f3"][data-piece="bn"]');
+    assert.strictEqual(await page.textContent('#stepInfo'), '1 / ' + line.split(/\s+/).filter((t) => !/^\d+\.+$/.test(t)).length);
+    await page.click('#prevStep');
+    await page.waitForSelector('#board g[data-square="e5"][data-piece="bn"]');
+    // 찾았으니 '둔 수' 탭은 없다
+    assert.ok(await page.isHidden('#tabs [data-view="bad"]'));
+    await page.click('#tabs [data-view="end"]');
     await page.waitForFunction(() => !document.querySelector('#board .arrow-success'));
     // 빈 줄이 있어도 칸이 정사각형
     const sizes = await page.$$eval('#board rect[data-square]', (els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
