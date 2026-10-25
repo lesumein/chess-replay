@@ -47,7 +47,7 @@ Chess.com에서 내가 놓친 장면을, "여기 뭔가 있다"는 신호 없이
 - 봇 세기: 원래 상대 레이팅. 후보 8개를 깊이 10으로 보고 레이팅이 낮을수록 점수 차를 덜 따져 고르며, 가끔 아무 수나 둔다(100점: 12%, 400점: 5%, 800점: 2%, 1600점 이상: 0). 첫 버전(25%/12%/5%)은 폰에서 너무 약했다.
 - 시계: 내 수 하나에 20초꼴(7수에 2분 20초). 수마다 쓴 시간을 잰다.
 - 판정: 장면에서 둔 수가 최선과 1.2폰 안이면 찾은 것. 결과는 한 줄 + 장면 포지션에 화살표(초록: 좋은 수, 빨강: 둔 수). '끝난 판 보기'로 오갈 수 있다.
-- 판·기물: 직접 그린 SVG(폰 글꼴에 따라 모양이 바뀌지 않게).
+- 판·기물: cm-chessboard + 위키백과 표준 기물(직접 그린 판은 보기 어려워서 바꿈).
 - 홈: 찾은 비율, 남은 장면, 최근 2주 동안 연 날. 아이디를 바꾸면 기록을 지운다.
 
 ## 테스트
@@ -61,3 +61,6 @@ Chess.com API는 `tests/fixtures`(내 게임 한 판, 상대 아이디는 지움
 ## 라이선스
 - 이 저장소의 코드: Apache 2.0 (`LICENSE`).
 - `stockfish/`: [Stockfish](https://github.com/official-stockfish/Stockfish) 18 lite 싱글스레드 WASM 빌드([stockfish.js](https://github.com/nmrugg/stockfish.js) npm 18.0.8)를 수정 없이 둔 것. GPL v3, 전문은 `stockfish/COPYING`. 앱과는 Web Worker의 UCI 메시지로만 주고받는다.
+- `vendor/cm-chessboard/`: [cm-chessboard](https://github.com/shaack/cm-chessboard) 8.15.3, MIT. 수정 없이 두고, 비상업 라이선스인 Staunty 기물 파일(`assets/pieces/staunty.svg`)만 뺐다.
+- 기물 그림(`vendor/cm-chessboard/assets/pieces/standard.svg`): Wikimedia Commons, Cburnett·Rfc1394, [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). 앱 화면 아래에 출처 표기.
+- 위 둘은 원칙("다른 서비스의 코드·그림은 쓰지 않는다")의 예외로 2026-10-25 허용함.

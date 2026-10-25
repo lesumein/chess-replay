@@ -8,26 +8,25 @@ const { serve, fakeChessCom } = require('./helpers.cjs');
 
 const SHOTS = process.env.SCREENSHOT_DIR || __dirname;
 
+async function clickSquare(page, sq) {
+  const box = await page.locator(`#board rect[data-square="${sq}"]`).boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
 // 내 차례가 될 때까지 기다렸다가 from → to를 탭한다.
 async function move(page, uci) {
   await page.waitForSelector('#board[data-active="true"]', { timeout: 120_000 });
-  await page.click(`[data-sq="${uci.slice(0, 2)}"]`);
-  await page.click(`[data-sq="${uci.slice(2, 4)}"]`);
+  await clickSquare(page, uci.slice(0, 2));
+  await clickSquare(page, uci.slice(2, 4));
 }
 
 // 둘 수 있는 아무 수
 async function anyMove(page) {
   await page.waitForSelector('#board[data-active="true"], #result:not([hidden])', { timeout: 120_000 });
   if (await page.isVisible('#result')) return false;
-  for (const sq of await page.$$eval('#board .pc', (els) => els.map((e) => e.parentElement.dataset.sq))) {
-    await page.click(`[data-sq="${sq}"]`);
-    const target = await page.$('#board .dot, #board .hit');
-    if (target) {
-      await target.click();
-      return true;
-    }
-  }
-  throw new Error('둘 수가 없음');
+  const legal = (await page.getAttribute('#board', 'data-legal')).split(' ');
+  await move(page, legal[0]);
+  return true;
 }
 
 (async () => {
@@ -51,8 +50,9 @@ async function anyMove(page) {
     assert.ok(width <= page.viewportSize().width, `가로 스크롤이 생김: ${width}px`);
     // 흑이므로 a1이 오른쪽 위
     await page.waitForSelector('#board[data-active="true"]', { timeout: 60_000 });
-    const corner = await page.$eval('#board .sq', (el) => el.dataset.sq);
-    assert.strictEqual(corner, 'h1');
+    const a1 = await page.locator('#board rect[data-square="a1"]').boundingBox();
+    const h8 = await page.locator('#board rect[data-square="h8"]').boundingBox();
+    assert.ok(a1.x > h8.x && a1.y < h8.y, 'a1이 오른쪽 위가 아님');
     // 장면 표시가 없어야 한다
     assert.ok(!/14|장면|찾/.test(await page.textContent('#play')), '두는 동안 장면 신호가 보임');
 
@@ -60,8 +60,7 @@ async function anyMove(page) {
 
     // 원래 게임대로 10...Nge5 11...d3 12...Na5 13...Be6, 그리고 14...Nxf3+
     for (const uci of ['g4e5', 'd4d3', 'c6a5', 'c8e6']) await move(page, uci);
-    const before = await page.$eval('[data-sq="f3"]', (el) => el.innerHTML);
-    assert.ok(before.includes('aria-label="N"'), '원래 게임대로라면 f3에 백 나이트가 있어야 함');
+    assert.ok(await page.$('#board g[data-square="f3"][data-piece="wn"]'), '원래 게임대로라면 f3에 백 나이트가 있어야 함');
     await move(page, 'e5f3');
     while (await anyMove(page));
 
@@ -70,13 +69,13 @@ async function anyMove(page) {
     console.log('결과:', text);
     assert.match(text, /14수에서 Nxf3\+를 찾았어요 ✅/);
     // 장면 포지션으로 돌아가 좋은 수를 화살표로 보여 준다
-    assert.strictEqual(await page.$$eval('#board .arrow.good', (a) => a.length), 1);
-    assert.ok((await page.$eval('[data-sq="e5"]', (el) => el.innerHTML)).includes('class="pc b"'), '장면 포지션이 아님');
+    await page.waitForSelector('#board .arrow-success');
+    assert.ok(await page.$('#board g[data-square="e5"][data-piece="bn"]'), '장면 포지션이 아님');
     await page.screenshot({ path: path.join(SHOTS, 'app-result.png') });
     await page.click('#toggleView');
-    assert.strictEqual(await page.$$eval('#board .arrow', (a) => a.length), 0);
+    await page.waitForFunction(() => !document.querySelector('#board .arrow-success'));
     // 빈 줄이 있어도 칸이 정사각형
-    const sizes = await page.$$eval('#board .sq', (els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    const sizes = await page.$$eval('#board rect[data-square]', (els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
     assert.ok(Math.max(...sizes) - Math.min(...sizes) <= 1, `칸 높이가 다름: ${Math.min(...sizes)}~${Math.max(...sizes)}`);
 
     await page.click('#homeBtn');

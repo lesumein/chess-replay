@@ -108,6 +108,7 @@ async function startScene() {
   $('opp').textContent = `${scene.opp.name}${scene.opp.rating ? ` (${scene.opp.rating})` : ''}`;
   $('me').textContent = scene.me.name;
   $('gameInfo').textContent = `${new Date(scene.endTime * 1000).toLocaleDateString('ko-KR')} · ${scene.timeClass}`;
+  board?.destroy();
   board = new Board($('board'), { bottom: scene.side ? 'b' : 'w', onMove: () => {} });
   playEngine ??= new Engine(ENGINE_URL);
   await playEngine.init();
