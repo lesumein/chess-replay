@@ -1,4 +1,7 @@
-# main에 올라갈 때마다 안드로이드 앱(디버그 APK)을 빌드해 Actions 결과물로 올린다.
+# main에 올라갈 때마다 안드로이드 앱을 빌드해 Actions 결과물로 올린다.
+# 저장소 Secrets에 서명 키가 있으면 서명된 릴리즈 APK·AAB도 만든다.
+#   ANDROID_KEYSTORE_BASE64  키 파일(.jks/.keystore)을 base64로
+#   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
 name: android
 on:
   push:
@@ -7,6 +10,8 @@ on:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,9 +23,28 @@ jobs:
           java-version: 21
       - run: npm ci
       - run: npm run sync
-      - run: ./gradlew assembleDebug --no-daemon
+      - name: 서명 키 준비
+        if: env.HAS_KEY == 'true'
         working-directory: android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+          printf 'storeFile=release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+      - name: 빌드
+        working-directory: android
+        run: ./gradlew assembleDebug ${{ env.HAS_KEY == 'true' && 'assembleRelease bundleRelease' || '' }} --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: chess-replay-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          name: chess-replay-release
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
