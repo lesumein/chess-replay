@@ -1,0 +1,8 @@
+{
+  "appId": "io.github.lesumein.chessreplay",
+  "appName": "다시 두기",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#faf8f4"
+  }
+}

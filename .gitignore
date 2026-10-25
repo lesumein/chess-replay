@@ -1,2 +1,3 @@
-tests/bench.png
+tests/*.png
 node_modules/
+www/

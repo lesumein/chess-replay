@@ -69,3 +69,26 @@ export async function analyzeGame(engine, g, user, onScene = () => {}) {
   await store.put('games', { ...g, status: 'done', scenes: scenes.length });
   return scenes;
 }
+
+// 새 게임을 가져와 최근 것부터 차례로 분석한다. 앱 화면과 백그라운드 작업이 같이 쓴다.
+// shouldStop()은 판과 판 사이에서 본다. 돌려주는 값: 'done'(더 분석할 게임 없음) | 'stopped'
+export async function analyzeMore(engine, user, { onGame, onGameDone, onScene, shouldStop = () => false, beforeEach } = {}) {
+  let more = await refreshGames(user);
+  while (!shouldStop()) {
+    await beforeEach?.();
+    const [g] = await pendingGames();
+    if (!g) {
+      if (!more) return 'done';
+      more = await refreshGames(user);
+      continue;
+    }
+    onGame?.(g);
+    try {
+      await analyzeGame(engine, g, user, onScene);
+    } catch (err) {
+      await store.put('games', { ...g, status: 'error', error: String(err.message) });
+    }
+    await onGameDone?.(g);
+  }
+  return 'stopped';
+}

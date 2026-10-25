@@ -82,6 +82,7 @@
   .next { display: grid; gap: 14px; }
   .next .count { font-size: 2.2rem; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; }
   .next .count small { font-size: .95rem; font-weight: 500; color: var(--muted); margin-left: 4px; }
+  .closed { color: var(--accent); font-weight: 600; margin-top: -6px; }
   .working { display: flex; align-items: center; gap: 8px; min-height: 20px; }
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
   .stats div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 6px; text-align: center; }
@@ -176,6 +177,7 @@
 
     <div class="card next">
       <div class="count" id="remaining">0<small>장면 준비됨</small></div>
+      <div class="closed small" id="closedNote" hidden></div>
       <button class="btn block" id="playBtn" type="button" disabled>두기</button>
       <div class="working small muted" id="working" role="status"><span class="spinner" id="spinner" hidden></span><span id="note"></span></div>
     </div>

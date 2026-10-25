@@ -1,0 +1,21 @@
+{
+  "name": "chess-replay",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Chess.com에서 놓친 장면을 신호 없이 다시 두기",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build:www": "node scripts/build-www.mjs",
+    "sync": "npm run build:www && cap sync android",
+    "apk": "npm run sync && cd android && ./gradlew assembleDebug",
+    "test": "node tests/app.test.cjs && node tests/background.test.cjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

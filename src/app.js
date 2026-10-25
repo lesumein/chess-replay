@@ -1,7 +1,7 @@
 import { Engine } from './engine.js';
 import { Board } from './board.js';
 import { playScene } from './play.js';
-import { refreshGames, pendingGames, analyzeGame } from './library.js';
+import { analyzeMore } from './library.js';
 import * as store from './store.js';
 
 const ENGINE_URL = 'stockfish/stockfish-18-lite-single.js';
@@ -9,6 +9,7 @@ const FAKE_EVERY = 4; // 장면 네 개에 하나꼴로 가짜
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const NATIVE = !!window.Capacitor?.isNativePlatform?.();
 const TIME_CLASS = { bullet: '불릿', blitz: '블리츠', rapid: '래피드', daily: '데일리' };
 
 let user = '';
@@ -20,6 +21,7 @@ let bgRunning = null;
 let board = null;
 let session = null; // 지금 두는 장면을 멈출 AbortController
 let installPrompt = null;
+let madeWhileClosed = 0; // 앱을 닫아 둔 동안 백그라운드 작업이 만든 장면 수
 
 function show(view) {
   for (const v of ['setup', 'home', 'play']) $(v).hidden = v !== view;
@@ -50,23 +52,12 @@ function runBackground() {
       setNote('게임을 가져오는 중…', true);
       bgEngine ??= new Engine(ENGINE_URL);
       await bgEngine.init();
-      let more = await refreshGames(user);
-      while (true) {
-        await visible();
-        const [g] = await pendingGames();
-        if (!g) {
-          if (!more) break;
-          more = await refreshGames(user);
-          continue;
-        }
-        setNote(`${dateLabel(g.endTime)} 게임을 분석하는 중…`, true);
-        try {
-          await analyzeGame(bgEngine, g, user, onNewScene);
-        } catch (err) {
-          await store.put('games', { ...g, status: 'error', error: String(err.message) });
-        }
-        await renderHome();
-      }
+      await analyzeMore(bgEngine, user, {
+        beforeEach: visible,
+        onGame: (g) => setNote(`${dateLabel(g.endTime)} 게임을 분석하는 중…`, true),
+        onGameDone: renderHome,
+        onScene: onNewScene,
+      });
       setNote('끝난 게임을 모두 분석했어요. 새 게임을 두면 다시 쌓여요.');
     } catch (err) {
       setNote(err.message);
@@ -138,6 +129,8 @@ async function renderHome() {
   const remaining = scenes.filter((s) => !played.has(s.id)).length;
 
   $('remaining').innerHTML = `${remaining}<small>장면 준비됨</small>`;
+  $('closedNote').hidden = !madeWhileClosed;
+  $('closedNote').textContent = `앱을 닫아 둔 동안 ${madeWhileClosed}개 만들어 뒀어요`;
   $('stats').innerHTML = `
     <div><b>${judged.length ? `${found}/${judged.length}` : '–'}</b><span>찾은 장면</span></div>
     <div><b>${analyzed}</b><span>분석한 게임</span></div>
@@ -327,13 +320,18 @@ $('nextBtn').addEventListener('click', startScene);
 $('homeBtn').addEventListener('click', goHome);
 $('quitBtn').addEventListener('click', goHome);
 
-if ('serviceWorker' in navigator && !params.has('nosw')) {
+if ('serviceWorker' in navigator && !params.has('nosw') && !NATIVE) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
 (async () => {
   if (!user) return show('setup');
   await recordDay();
+  const bg = await store.get('meta', 'background');
+  if (bg?.scenes) {
+    madeWhileClosed = bg.scenes;
+    await store.put('meta', { ...bg, scenes: 0 }, 'background');
+  }
   // 이미 만들어 둔 장면이 있으면 바로 두기, 그동안 뒤에서 새 게임을 쌓는다.
   const scene = await nextScene();
   if (scene) startScene();
