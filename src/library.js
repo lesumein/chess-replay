@@ -16,6 +16,7 @@ async function getJson(url) {
 }
 
 // 이번 달은 열 때마다, 지난 달은 분석할 게임이 모자랄 때 한 달씩만 가져온다.
+// 돌려주는 값: 더 가져올 달이 남았는지
 export async function refreshGames(user, want = 5) {
   const { archives } = await getJson(`${API}/${encodeURIComponent(user)}/games/archives`);
   const done = new Set((await store.get('meta', 'months')) ?? []);
@@ -33,15 +34,17 @@ export async function refreshGames(user, want = 5) {
     await store.putMany('games', added);
     added.forEach((g) => known.add(g.url));
     if (k > 0) await store.put('meta', [...done.add(url)], 'months');
-    if (k > 0 || known.size >= want) break;
+    if (k > 0 || known.size >= want) return true;
   }
+  return false;
 }
 
 export async function pendingGames() {
   return (await store.getAll('games')).filter((g) => g.status === 'new').sort((a, b) => b.endTime - a.endTime);
 }
 
-export async function analyzeGame(engine, g, user) {
+// onScene: 장면이 하나 저장될 때마다 불린다
+export async function analyzeGame(engine, g, user, onScene = () => {}) {
   const { headers, moves } = parsePgn(g.pgn);
   if (moves.length < MIN_PLIES || headers.SetUp === '1') {
     await store.put('games', { ...g, status: 'skipped' });
@@ -59,8 +62,10 @@ export async function analyzeGame(engine, g, user) {
     me: { name: me.username, rating: me.rating },
     opp: { name: opp.username, rating: opp.rating },
   };
-  const scenes = await buildScenes(engine, meta, positions, evals, side);
-  await store.putMany('scenes', scenes);
+  const scenes = await buildScenes(engine, meta, positions, evals, side, async (scene) => {
+    await store.put('scenes', scene);
+    onScene(scene);
+  });
   await store.put('games', { ...g, status: 'done', scenes: scenes.length });
   return scenes;
 }

@@ -26,25 +26,45 @@ function setNote(text) {
   $('note').textContent = text;
 }
 
-// ---- 백그라운드: 열 때마다 새 게임을 조금씩 분석해 쌓는다 ----
-function runBackground(games = 2) {
+// ---- 백그라운드: 앱이 열려 있는 동안 새 게임을 계속 분석해 쌓는다 ----
+// 폰 웹앱은 닫히면 계산이 멈추므로, 열려 있는 시간을 최대한 쓴다.
+let waitingForScene = false; // 장면이 없어 홈에서 기다리는 중이면 첫 장면이 생기자마자 시작
+
+const visible = () => document.visibilityState === 'visible'
+  ? Promise.resolve()
+  : new Promise((r) => document.addEventListener('visibilitychange', function on() {
+    if (document.visibilityState === 'visible') {
+      document.removeEventListener('visibilitychange', on);
+      r();
+    }
+  }));
+
+function runBackground() {
   bgRunning ??= (async () => {
     try {
       bgEngine ??= new Engine(ENGINE_URL);
       await bgEngine.init();
-      await refreshGames(user);
-      for (let k = 0; k < games; k++) {
-        const [g] = await pendingGames();
-        if (!g) break;
-        setNote(`새 게임 분석 중… (${new Date(g.endTime * 1000).toLocaleDateString('ko-KR')})`);
+      let more = await refreshGames(user);
+      let done = 0;
+      while (true) {
+        await visible();
+        const pending = await pendingGames();
+        const g = pending[0];
+        if (!g) {
+          if (!more) break;
+          more = await refreshGames(user);
+          continue;
+        }
+        setNote(`게임 분석 중… ${new Date(g.endTime * 1000).toLocaleDateString('ko-KR')} (이번에 ${done}판 분석함)`);
         try {
-          await analyzeGame(bgEngine, g, user);
+          await analyzeGame(bgEngine, g, user, onNewScene);
         } catch (err) {
           await store.put('games', { ...g, status: 'error', error: String(err.message) });
         }
+        done++;
         await renderHome();
       }
-      setNote('');
+      setNote('모든 게임을 분석했어요.');
     } catch (err) {
       setNote(err.message);
       throw err;
@@ -53,6 +73,15 @@ function runBackground(games = 2) {
     }
   })();
   return bgRunning;
+}
+
+function onNewScene() {
+  if (waitingForScene && !$('home').hidden) {
+    waitingForScene = false;
+    startScene();
+  } else {
+    renderHome();
+  }
 }
 
 // ---- 다음 장면 고르기 ----
@@ -161,7 +190,8 @@ $('setupForm').addEventListener('submit', async (e) => {
   await recordDay();
   await goHome();
   setNote('게임을 가져오는 중…');
-  runBackground().then(() => (!$('home').hidden && !$('playBtn').disabled ? startScene() : null)).catch(() => {});
+  waitingForScene = true;
+  runBackground().catch(() => {});
 });
 
 $('playBtn').addEventListener('click', startScene);
@@ -179,6 +209,9 @@ $('changeUser').addEventListener('click', () => {
   // 이미 만들어 둔 장면이 있으면 바로 두기, 그동안 뒤에서 새 게임을 쌓는다.
   const scene = await nextScene();
   if (scene) startScene();
-  else await goHome();
+  else {
+    waitingForScene = true;
+    await goHome();
+  }
   runBackground().catch(() => {});
 })();

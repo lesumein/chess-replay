@@ -2,11 +2,12 @@ import { classify, cp, sanOf } from './analyze.js';
 
 export const LEAD = 4; // 장면 몇 수 전(내 수 기준)부터 두는지
 export const AFTER = 2; // 장면 뒤로 내 수를 몇 수 더 두는지
-const RECHECK_DEPTH = 18;
+const RECHECK_DEPTH = 16; // 폰에서 포지션당 최대 1~2초
 
 // 분석한 한 판에서 다시 둘 장면(진짜 + 가짜 하나)을 만든다.
 // game: { url, endTime, timeClass, me: {name, rating}, opp: {name, rating} }
-export async function buildScenes(engine, game, positions, evals, side) {
+// onScene: 장면 하나가 확정될 때마다 불린다(판 전체를 기다리지 않고 바로 저장하려고).
+export async function buildScenes(engine, game, positions, evals, side, onScene = async () => {}) {
   const scenes = [];
   for (let i = side; i < positions.length - 1; i += 2) {
     if (!classify(positions, evals, i).kind) continue;
@@ -28,9 +29,13 @@ export async function buildScenes(engine, game, positions, evals, side) {
       mate: evals[i].score.type === 'mate' && evals[i].score.value > 0 ? evals[i].score.value : null,
       refuteSan: c.kind === 'blunder' && refute ? await sanOf(engine, positions[i + 1].fen, positions[i + 1].legal, refute) : null,
     });
+    await onScene(scenes.at(-1));
   }
   const fake = pickQuiet(positions, evals, side, scenes);
-  if (fake != null) scenes.push({ ...base(game, positions, fake, side), fake: true, kind: 'quiet', before: cp(evals[fake].score), loss: 0 });
+  if (fake != null) {
+    scenes.push({ ...base(game, positions, fake, side), fake: true, kind: 'quiet', before: cp(evals[fake].score), loss: 0 });
+    await onScene(scenes.at(-1));
+  }
   return scenes;
 }
 
