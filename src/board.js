@@ -38,6 +38,7 @@ export class Board {
     this.cb.removeMarkers();
     this.cb.removeArrows();
     await this.cb.setPosition(fen, true);
+    this.onPosition?.(fen);
     if (lastMove) {
       this.cb.addMarker(MARKER_TYPE.square, lastMove.slice(0, 2));
       this.cb.addMarker(MARKER_TYPE.square, lastMove.slice(2, 4));

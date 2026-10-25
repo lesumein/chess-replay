@@ -2,6 +2,7 @@ import { Engine } from './engine.js';
 import { Board } from './board.js';
 import { playScene } from './play.js';
 import { analyzeMore } from './library.js';
+import { material } from './material.js';
 import * as store from './store.js';
 
 const ENGINE_URL = 'stockfish/stockfish-18-lite-single.js';
@@ -171,6 +172,22 @@ function setTurn(who) {
   $('thinking').hidden = who !== 'opp';
 }
 
+// 이름 아래에 잡은 기물과 점수 우위(+N)
+function showMaterial(fen, meColor, oppColor) {
+  const m = material(fen);
+  const render = ({ took, plus }, takenColor) => {
+    let prev = null;
+    const icons = took.map((t) => {
+      const gap = prev && prev !== t ? ' class="gap"' : '';
+      prev = t;
+      return `<svg viewBox="0 0 40 40"${gap}><use href="#${takenColor}${t}"/></svg>`;
+    }).join('');
+    return icons + (plus ? `<b>+${plus}</b>` : '');
+  };
+  $('meMaterial').innerHTML = render(m[meColor], oppColor);
+  $('oppMaterial').innerHTML = render(m[oppColor], meColor);
+}
+
 async function startScene() {
   session?.abort();
   const mine = (session = new AbortController());
@@ -190,6 +207,7 @@ async function startScene() {
   setTurn(null);
   board?.destroy();
   board = new Board($('board'), { bottom: meColor, onMove: () => {} });
+  board.onPosition = (fen) => showMaterial(fen, meColor, oppColor);
   playEngine ??= new Engine(ENGINE_URL);
   await playEngine.init();
   const result = await playScene(scene, playEngine, { board, clock: setClock, turn: setTurn }, {

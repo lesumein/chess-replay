@@ -103,6 +103,11 @@
   .avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: .9rem; flex: none; }
   .avatar.w { background: #f4f1ea; color: #333; border: 1px solid #d6d0c4; }
   .avatar.b { background: #2b2925; color: #eee; }
+  .player .who { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+  .material { display: flex; align-items: center; min-height: 18px; font-size: .8rem; color: var(--muted); font-weight: 600; }
+  .material svg { width: 20px; height: 20px; margin-right: -8px; }
+  .material svg.gap { margin-left: 6px; }
+  .material b { margin-left: 10px; font-weight: 650; }
   .player .name { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .player .rating { color: var(--muted); font-weight: 400; margin-left: 4px; }
   .thinking { display: inline-flex; gap: 3px; margin-left: 8px; }
@@ -209,13 +214,13 @@
     </div>
     <div class="player">
       <span class="avatar" id="oppAvatar"></span>
-      <span class="name" id="opp"></span>
+      <span class="who"><span class="name" id="opp"></span><span class="material" id="oppMaterial"></span></span>
       <span class="thinking" id="thinking" hidden aria-label="상대가 생각 중"><i></i><i></i><i></i></span>
     </div>
     <div id="board"></div>
     <div class="player">
       <span class="avatar" id="meAvatar"></span>
-      <span class="name" id="me"></span>
+      <span class="who"><span class="name" id="me"></span><span class="material" id="meMaterial"></span></span>
       <span class="clock" id="clock">0:00</span>
     </div>
 

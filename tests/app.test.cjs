@@ -57,6 +57,11 @@ async function anyMove(page) {
     // 장면 표시가 없어야 한다
     assert.ok(!/14|장면|찾/.test(await page.innerText('#play')), '두는 동안 장면 신호가 보임');
 
+    // 기물 우위: 3.Bxf7+ Kxf7로 흑(나)이 비숍을, 백이 폰을 잡아 흑 +3 (7...exd4로 폰 하나 더)
+    await page.waitForFunction(() => document.querySelector('#meMaterial').textContent.includes('+3'));
+    assert.ok(await page.$('#meMaterial use[href="#wb"]'), '내가 잡은 백 비숍');
+    assert.ok(await page.$('#oppMaterial use[href="#bp"]'), '상대가 잡은 흑 폰');
+    assert.ok(!(await page.textContent('#oppMaterial')).includes('+'));
     await page.screenshot({ path: path.join(SHOTS, 'app-play.png') });
 
     // 원래 게임대로 10...Nge5 11...d3 12...Na5 13...Be6, 그리고 14...Nxf3+
