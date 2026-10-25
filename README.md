@@ -1,0 +1,38 @@
+# chess-replay
+
+Chess.com에서 내가 놓친 장면을, "여기 뭔가 있다"는 신호 없이 3~5수 전부터 봇과 다시 두는 폰 웹앱.
+
+## 시험할 것
+- 퍼즐처럼 장면을 알려 주지 않고 실전처럼 다시 두게 하면, 실전에서 놓친 기회·큰 실수가 줄어드는가.
+- 2주 동안 손이 가는가. 안 가면 접는다.
+- 첫 관문: 폰에서 Stockfish로 한 판을 쓸 만한 시간 안에 분석할 수 있는가.
+
+## 범위 (첫 버전)
+- Chess.com 아이디만 입력. 로그인·서버 없음. 공개 API에서 **끝난 게임만** 가져온다.
+- 폰에서 Stockfish(WASM, 싱글스레드)로 분석해 놓친 기회·큰 실수 장면을 찾는다. 저장은 localStorage/IndexedDB.
+- 장면 3~5수 전부터 신호 없이 봇과 이어 두기, 수마다 시계. 아무것도 없는 가짜 장면도 섞는다.
+- 끝나면 한 줄 결과만. 결제는 아직 붙이지 않음.
+
+## 결과
+- 분석 속도 재기 화면(`index.html`): 아이디 → 최근 끝난 게임 고르기 → 깊이별로 한 판 분석 시간과 찾은 장면 표시.
+- 이 컴퓨터(Playwright, Pixel 7 화면, 51수 블리츠 한 판): 깊이 10 0.6초, 12 1.6초, 16 14초, 20 134초.
+  - 깊이 10~12에서도 짚어 둔 세 장면(14...Nxf3+, 23수 Bf7, 27...c5)을 모두 잡았다.
+  - 23...Qa4(6수 메이트)는 깊이 20에서야 보인다. 얕으면 대신 Bf7(+5)을 내놓는다.
+- 폰 속도: (아직 없음)
+
+## 다음 할 일
+- [ ] GitHub Pages로 띄워서 폰에서 재기 → 결과 복사해 여기 적기
+- [ ] 장면 3~5수 전부터 봇과 두는 화면
+- [ ] 가짜 장면 고르는 기준
+- [ ] 열 때마다 1~2판씩 뒤에서 분석해 쌓기
+
+## 테스트
+```
+node tests/bench.test.cjs                  # 깊이 10, 12, 16
+DEPTHS=12,20 node tests/bench.test.cjs
+```
+Chess.com API는 `tests/fixtures`(내 게임 한 판, 상대 아이디는 지움)로 대신한다.
+
+## 라이선스
+- 이 저장소의 코드: Apache 2.0 (`LICENSE`).
+- `stockfish/`: [Stockfish](https://github.com/official-stockfish/Stockfish) 18 lite 싱글스레드 WASM 빌드([stockfish.js](https://github.com/nmrugg/stockfish.js) npm 18.0.8)를 수정 없이 둔 것. GPL v3, 전문은 `stockfish/COPYING`. 앱과는 Web Worker의 UCI 메시지로만 주고받는다.
