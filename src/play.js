@@ -56,7 +56,8 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal } = 
   }
   ui.board.set(fen, [], last);
   ui.status('');
-  return judge(scene, engine, atScene, timedOut);
+  const result = await judge(scene, engine, atScene, timedOut);
+  return { ...result, review: await review(scene, engine, atScene, result.outcome), end: { fen, last } };
 }
 
 function waitForMove(ui, fen, legal, last, clockMs, onTick, signal) {
@@ -92,6 +93,18 @@ async function judge(scene, engine, atScene, timedOut) {
   const userSan = await sanOf(engine, atScene.fen, atScene.legal, atScene.uci);
   const outcome = loss <= OK_LOSS ? 'found' : 'missed';
   return { ...base, outcome, ms: atScene.ms, text: describe(scene, outcome, userSan) };
+}
+
+// 끝난 뒤 판에 보여 줄 장면: 원래 게임의 그 포지션, 좋은 수(초록)와 내가 둔 수(빨강)
+async function review(scene, engine, atScene, outcome) {
+  let fen = scene.startFen;
+  for (const uci of scene.line.slice(0, scene.ply - scene.startPly)) ({ fen } = await engine.play(fen, uci));
+  const last = scene.ply > scene.startPly ? scene.line[scene.ply - scene.startPly - 1] : null;
+  const arrows = [];
+  if (!scene.fake) arrows.push({ uci: scene.bestUci, kind: 'good' });
+  const mine = atScene?.uci;
+  if (mine && mine !== scene.bestUci && (outcome !== 'found' || scene.fake)) arrows.push({ uci: mine, kind: scene.fake && outcome === 'found' ? 'good' : 'bad' });
+  return { fen, last, arrows };
 }
 
 // 받침 있는 글자로 끝나는지(SAN 끝 글자를 읽는 소리 기준)

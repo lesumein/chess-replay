@@ -124,6 +124,21 @@ async function startScene() {
   const { text, ...record } = result;
   await store.add('results', record);
   $('resultText').textContent = text;
+  // 끝나면 장면 포지션으로 돌아가 화살표로 보여 준다. 버튼으로 끝난 판과 오갈 수 있다.
+  const views = {
+    scene: () => board.set(result.review.fen, [], result.review.last, result.review.arrows),
+    end: () => board.set(result.end.fen, [], result.end.last),
+  };
+  let view = 'scene';
+  views.scene();
+  $('legend').hidden = !result.review.arrows.length;
+  $('legendBad').hidden = !result.review.arrows.some((a) => a.kind === 'bad');
+  $('toggleView').textContent = '끝난 판 보기';
+  $('toggleView').onclick = () => {
+    view = view === 'scene' ? 'end' : 'scene';
+    views[view]();
+    $('toggleView').textContent = view === 'scene' ? '끝난 판 보기' : '장면 보기';
+  };
   $('resultLink').href = `${scene.gameUrl}?move=${scene.ply + 1}`;
   $('result').hidden = false;
 }

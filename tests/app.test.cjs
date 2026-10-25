@@ -60,8 +60,8 @@ async function anyMove(page) {
 
     // 원래 게임대로 10...Nge5 11...d3 12...Na5 13...Be6, 그리고 14...Nxf3+
     for (const uci of ['g4e5', 'd4d3', 'c6a5', 'c8e6']) await move(page, uci);
-    const before = await page.$eval('[data-sq="f3"]', (el) => el.textContent);
-    assert.ok(before.includes('♞'), '원래 게임대로라면 f3에 백 나이트가 있어야 함');
+    const before = await page.$eval('[data-sq="f3"]', (el) => el.innerHTML);
+    assert.ok(before.includes('aria-label="N"'), '원래 게임대로라면 f3에 백 나이트가 있어야 함');
     await move(page, 'e5f3');
     while (await anyMove(page));
 
@@ -69,7 +69,15 @@ async function anyMove(page) {
     const text = await page.textContent('#resultText');
     console.log('결과:', text);
     assert.match(text, /14수에서 Nxf3\+를 찾았어요 ✅/);
+    // 장면 포지션으로 돌아가 좋은 수를 화살표로 보여 준다
+    assert.strictEqual(await page.$$eval('#board .arrow.good', (a) => a.length), 1);
+    assert.ok((await page.$eval('[data-sq="e5"]', (el) => el.innerHTML)).includes('class="pc b"'), '장면 포지션이 아님');
     await page.screenshot({ path: path.join(SHOTS, 'app-result.png') });
+    await page.click('#toggleView');
+    assert.strictEqual(await page.$$eval('#board .arrow', (a) => a.length), 0);
+    // 빈 줄이 있어도 칸이 정사각형
+    const sizes = await page.$$eval('#board .sq', (els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    assert.ok(Math.max(...sizes) - Math.min(...sizes) <= 1, `칸 높이가 다름: ${Math.min(...sizes)}~${Math.max(...sizes)}`);
 
     await page.click('#homeBtn');
     await page.waitForFunction(() => document.querySelector('#stats').textContent.includes('/'));
