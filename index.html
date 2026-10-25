@@ -3,219 +3,115 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>분석 속도 재기</title>
+<title>다시 두기</title>
 <style>
   :root {
-    --bg: #faf8f4; --fg: #1f1d1a; --muted: #6b665e; --line: #e2ddd3;
-    --card: #ffffff; --accent: #2f6b4f; --accent-fg: #ffffff; --warn: #a3471f;
+    --bg: #faf8f4; --fg: #1f1d1a; --muted: #6b665e; --line: #e2ddd3; --card: #ffffff;
+    --accent: #2f6b4f; --accent-fg: #ffffff; --warn: #a3471f;
+    --sq-light: #e9e2d0; --sq-dark: #9c8b6e; --sq-last: rgba(214, 178, 60, .45); --sq-sel: rgba(47, 107, 79, .5);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #161513; --fg: #ece8e1; --muted: #a39d93; --line: #2e2b27;
-      --card: #1f1d1a; --accent: #6fb38f; --accent-fg: #10140f; --warn: #e08a62;
+      --bg: #161513; --fg: #ece8e1; --muted: #a39d93; --line: #2e2b27; --card: #1f1d1a;
+      --accent: #6fb38f; --accent-fg: #10140f; --warn: #e08a62;
+      --sq-light: #b9ae97; --sq-dark: #6f6250;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #161513; --fg: #ece8e1; --muted: #a39d93; --line: #2e2b27;
-    --card: #1f1d1a; --accent: #6fb38f; --accent-fg: #10140f; --warn: #e08a62;
+    --bg: #161513; --fg: #ece8e1; --muted: #a39d93; --line: #2e2b27; --card: #1f1d1a;
+    --accent: #6fb38f; --accent-fg: #10140f; --warn: #e08a62;
+    --sq-light: #b9ae97; --sq-dark: #6f6250;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
-  main { max-width: 560px; margin: 0 auto; padding: 20px 16px 40px; }
-  h1 { font-size: 1.3rem; margin: 0 0 4px; }
-  p.sub { margin: 0 0 20px; color: var(--muted); font-size: .9rem; }
+  main { max-width: 520px; margin: 0 auto; padding: 16px 16px 32px; }
+  h1 { font-size: 1.25rem; margin: 8px 0 4px; }
+  p.sub { margin: 0 0 20px; color: var(--muted); font-size: .92rem; }
   form { display: flex; gap: 8px; }
-  input, select { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); }
-  button { font: inherit; padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font-weight: 600; }
-  button:disabled { opacity: .5; }
-  .row { display: flex; gap: 16px; margin: 14px 0; flex-wrap: wrap; }
-  .row label { display: flex; gap: 6px; align-items: center; }
-  section { margin-top: 20px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 10px; }
-  .status { color: var(--muted); min-height: 1.5em; margin-top: 12px; }
-  .error { color: var(--warn); }
-  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
-  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
-  th { color: var(--muted); font-weight: 500; }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  ul.scenes { list-style: none; padding: 0; margin: 0; }
-  ul.scenes li { padding: 8px 0; border-bottom: 1px solid var(--line); }
-  .tag { font-size: .8rem; padding: 1px 6px; border-radius: 4px; border: 1px solid currentColor; margin-right: 6px; }
-  .tag.missed { color: var(--accent); }
-  .tag.blunder { color: var(--warn); }
-  .small { font-size: .85rem; color: var(--muted); }
-  footer { margin-top: 32px; font-size: .8rem; color: var(--muted); }
+  input { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); }
+  button { font: inherit; padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .45; }
+  button.ghost { background: transparent; color: var(--muted); padding: 6px 0; font-weight: 400; }
+  .big { width: 100%; padding: 14px; font-size: 1.05rem; margin-top: 16px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stats div { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 8px; text-align: center; }
+  .stats b { display: block; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+  .stats span { font-size: .8rem; color: var(--muted); }
+  .note { color: var(--muted); font-size: .88rem; min-height: 1.4em; margin-top: 12px; }
+  .bar { display: flex; justify-content: space-between; align-items: center; padding: 6px 2px; font-size: .95rem; }
+  .bar .who { font-weight: 600; }
+  .bar .side { color: var(--muted); font-size: .85rem; }
+  .clock { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.15rem; padding: 2px 10px; border-radius: 6px; background: var(--card); border: 1px solid var(--line); }
+  .clock.low { color: var(--warn); border-color: var(--warn); }
+  .board { display: grid; grid-template-columns: repeat(8, 1fr); width: 100%; aspect-ratio: 1; border-radius: 6px; overflow: hidden; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  .sq { position: relative; display: flex; align-items: center; justify-content: center; font-size: min(9.5vw, 50px); line-height: 1; }
+  .sq.light { background: var(--sq-light); }
+  .sq.dark { background: var(--sq-dark); }
+  .sq.last::before, .sq.sel::before { content: ''; position: absolute; inset: 0; background: var(--sq-last); }
+  .sq.sel::before { background: var(--sq-sel); }
+  .sq.dot::after { content: ''; position: absolute; width: 28%; height: 28%; border-radius: 50%; background: rgba(20, 20, 20, .3); }
+  .sq.hit::after { content: ''; position: absolute; inset: 4%; border-radius: 50%; border: 4px solid rgba(20, 20, 20, .3); }
+  .pc { position: relative; z-index: 1; font-family: "Noto Sans Symbols 2", "Segoe UI Symbol", "DejaVu Sans", sans-serif; }
+  .pc.w { color: #fbfaf6; text-shadow: 0 0 1px #000, 0 0 1px #000, 0 0 1px #000, 0 1px 1px #000; }
+  .pc.b { color: #1c1a17; text-shadow: 0 0 1px rgba(255,255,255,.5); }
+  .sq i { position: absolute; font-style: normal; font-size: 10px; line-height: 1; color: rgba(0,0,0,.45); }
+  .sq i.cf { right: 3px; bottom: 2px; }
+  .sq i.cr { left: 3px; top: 2px; }
+  .turn { min-height: 1.5em; color: var(--muted); font-size: .9rem; text-align: center; margin-top: 8px; }
+  .result { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 12px; }
+  .result p { margin: 0 0 12px; font-size: 1.05rem; }
+  .result .actions { display: flex; gap: 12px; align-items: center; }
+  .result a { color: var(--muted); font-size: .85rem; margin-left: auto; }
+  .top { display: flex; justify-content: space-between; align-items: baseline; }
+  footer { margin-top: 28px; font-size: .78rem; color: var(--muted); }
   footer a { color: inherit; }
-  pre { white-space: pre-wrap; word-break: break-all; font-size: .8rem; margin: 0; }
 </style>
 </head>
 <body>
 <main>
-  <h1>분석 속도 재기</h1>
-  <p class="sub">끝난 게임 한 판을 이 기기에서 Stockfish로 분석하는 데 몇 초 걸리는지 잽니다.</p>
+  <section id="setup" hidden>
+    <h1>다시 두기</h1>
+    <p class="sub">Chess.com에서 끝난 내 게임을 이 폰에서 분석해, 놓친 장면 몇 수 전부터 다시 둡니다. 어디가 그 장면인지는 알려 주지 않아요.</p>
+    <form id="setupForm">
+      <input id="user" placeholder="Chess.com 아이디" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+      <button>시작</button>
+    </form>
+  </section>
 
-  <form id="idForm">
-    <input id="user" name="user" placeholder="Chess.com 아이디" autocomplete="off" autocapitalize="off" spellcheck="false" required>
-    <button id="fetchBtn">가져오기</button>
-  </form>
-
-  <div id="pick" hidden>
-    <div class="row"><select id="game"></select></div>
-    <div class="row">
-      <label><input type="checkbox" name="depth" value="10"> 깊이 10</label>
-      <label><input type="checkbox" name="depth" value="12" checked> 12</label>
-      <label><input type="checkbox" name="depth" value="16" checked> 16</label>
-      <label><input type="checkbox" name="depth" value="20"> 20</label>
+  <section id="home" hidden>
+    <div class="top">
+      <h1>다시 두기</h1>
+      <button class="ghost" id="changeUser" type="button">아이디 바꾸기</button>
     </div>
-    <button id="runBtn">재기</button>
-  </div>
+    <div class="stats" id="stats"></div>
+    <button class="big" id="playBtn" type="button" disabled>두기</button>
+    <div class="note" id="note" role="status"></div>
+  </section>
 
-  <div id="status" class="status" role="status"></div>
-  <div id="result"></div>
+  <section id="play" hidden>
+    <div class="top">
+      <span class="side" id="gameInfo"></span>
+      <button class="ghost" id="quitBtn" type="button">그만</button>
+    </div>
+    <div class="bar"><span class="who" id="opp"></span></div>
+    <div id="board"></div>
+    <div class="bar"><span class="who" id="me"></span><span class="clock" id="clock">0:00</span></div>
+    <div class="turn" id="turn"></div>
+    <div class="result" id="result" hidden>
+      <p id="resultText"></p>
+      <div class="actions">
+        <button id="nextBtn" type="button">다음</button>
+        <button class="ghost" id="homeBtn" type="button">처음으로</button>
+        <a id="resultLink" target="_blank" rel="noopener">원래 게임</a>
+      </div>
+    </div>
+  </section>
 
   <footer>
-    분석 엔진: Stockfish (GPL v3), 소스: <a href="https://github.com/official-stockfish/Stockfish">github.com/official-stockfish/Stockfish</a>
-    · WASM 빌드: <a href="https://github.com/nmrugg/stockfish.js">github.com/nmrugg/stockfish.js</a>
-    · 라이선스 전문: <a href="stockfish/COPYING">stockfish/COPYING</a>
+    분석·상대: Stockfish (GPL v3), 소스: <a href="https://github.com/official-stockfish/Stockfish">github.com/official-stockfish/Stockfish</a>
+    · <a href="stockfish/COPYING">라이선스 전문</a> · <a href="bench.html">분석 속도 재기</a>
   </footer>
 </main>
-
-<script type="module">
-import { Engine } from './src/engine.js';
-import { parsePgn, addTimeSpent } from './src/pgn.js';
-import { replay, evaluateAll, findScenes } from './src/analyze.js';
-
-const API = 'https://api.chess.com/pub/player';
-const $ = (id) => document.getElementById(id);
-const status = (text, error = false) => { $('status').textContent = text; $('status').className = 'status' + (error ? ' error' : ''); };
-const sec = (ms) => (ms / 1000).toFixed(1) + '초';
-const pawns = (c) => (c >= 1000 ? '메이트' : c <= -1000 ? '메이트 당함' : (c > 0 ? '+' : '') + (c / 100).toFixed(1));
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
-let games = [];
-let user = '';
-
-try { $('user').value = localStorage.getItem('user') || ''; } catch {}
-
-async function getJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(res.status === 404 ? '아이디를 찾지 못했어요.' : `불러오지 못했어요 (${res.status}).`);
-  return res.json();
-}
-
-// 아카이브에는 끝난 게임만 있다. 진행 중인 게임은 여기서 가져오지 않는다.
-async function fetchRecentGames(name, want = 10) {
-  const { archives } = await getJson(`${API}/${encodeURIComponent(name)}/games/archives`);
-  const found = [];
-  for (const url of [...archives].reverse()) {
-    const { games } = await getJson(url);
-    const ok = games.filter((g) => g.rules === 'chess' && g.pgn && !/\[Result "\*"\]/.test(g.pgn));
-    found.push(...ok.sort((a, b) => b.end_time - a.end_time));
-    if (found.length >= want) break;
-  }
-  return found.slice(0, want);
-}
-
-function label(g) {
-  const me = g.white.username.toLowerCase() === user.toLowerCase() ? 'white' : 'black';
-  const opp = me === 'white' ? g.black : g.white;
-  const res = g[me].result === 'win' ? '승' : ['agreed', 'repetition', 'stalemate', 'insufficient', '50move', 'timevsinsufficient'].includes(g[me].result) ? '무' : '패';
-  const date = new Date(g.end_time * 1000).toLocaleDateString('ko-KR');
-  return `${date} · ${g.time_class} · ${me === 'white' ? '백' : '흑'} · ${res} · vs ${opp.username}`;
-}
-
-$('idForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  user = $('user').value.trim();
-  try { localStorage.setItem('user', user); } catch {}
-  $('fetchBtn').disabled = true;
-  $('pick').hidden = true;
-  $('result').innerHTML = '';
-  status('게임을 가져오는 중…');
-  try {
-    games = await fetchRecentGames(user);
-    if (!games.length) throw new Error('끝난 게임이 없어요.');
-    $('game').innerHTML = games.map((g, i) => `<option value="${i}">${esc(label(g))}</option>`).join('');
-    $('pick').hidden = false;
-    status(`최근 게임 ${games.length}판을 가져왔어요.`);
-  } catch (err) {
-    status(err.message, true);
-  } finally {
-    $('fetchBtn').disabled = false;
-  }
-});
-
-$('runBtn').addEventListener('click', async () => {
-  const g = games[$('game').value];
-  const depths = [...document.querySelectorAll('input[name=depth]:checked')].map((x) => +x.value);
-  if (!depths.length) return status('깊이를 하나 이상 고르세요.', true);
-  $('runBtn').disabled = true;
-  $('result').innerHTML = '';
-  const engine = new Engine('stockfish/stockfish-18-lite-single.js');
-  try {
-    let t = performance.now();
-    status('엔진을 불러오는 중…');
-    await engine.init();
-    const loadMs = performance.now() - t;
-
-    const { headers, moves } = parsePgn(g.pgn);
-    addTimeSpent(moves, headers.TimeControl);
-    t = performance.now();
-    const positions = await replay(engine, moves, headers.SetUp === '1' ? headers.FEN : undefined);
-    const replayMs = performance.now() - t;
-    const side = headers.White.toLowerCase() === user.toLowerCase() ? 0 : 1;
-
-    const runs = [];
-    for (const depth of depths) {
-      const { evals, ms } = await evaluateAll(engine, positions, depth, (i, n) => status(`깊이 ${depth} 분석 중… ${i}/${n}`));
-      const scenes = await findScenes(engine, positions, evals, side);
-      const slowest = Math.max(...evals.map((e) => e.ms));
-      runs.push({ depth, ms, perPos: ms / positions.length, slowest, scenes });
-    }
-    status('끝났어요.');
-    render(g, moves.length, positions.length, loadMs, replayMs, runs);
-  } catch (err) {
-    status(err.message, true);
-  } finally {
-    engine.terminate();
-    $('runBtn').disabled = false;
-  }
-});
-
-function render(g, plies, positions, loadMs, replayMs, runs) {
-  const rows = runs.map((r) => `<tr><td>깊이 ${r.depth}</td><td class="num">${sec(r.ms)}</td><td class="num">${Math.round(r.perPos)}ms</td><td class="num">${Math.round(r.slowest)}ms</td><td class="num">${r.scenes.length}</td></tr>`).join('');
-  const last = runs.at(-1);
-  const scenes = last.scenes.map((s) => `<li>
-      <span class="tag ${s.kind}">${s.kind === 'missed' ? '놓친 기회' : '큰 실수'}</span>
-      <b>${s.moveNo}${s.side ? '...' : '.'}${esc(s.played)}</b> → ${esc(s.best)}
-      <div class="small">${s.mate ? `${s.mate}수 메이트` : pawns(s.before)} → ${pawns(s.after)}${s.spent != null ? ` · 이 수에 ${s.spent.toFixed(1)}초` : ''}</div>
-    </li>`).join('');
-  const summary = [
-    `기기: ${navigator.userAgent}`,
-    `코어: ${navigator.hardwareConcurrency ?? '?'}`,
-    `게임: ${g.url} (${Math.ceil(plies / 2)}수)`,
-    `엔진 로드 ${sec(loadMs)}, 기보 따라가기 ${sec(replayMs)}`,
-    ...runs.map((r) => `깊이 ${r.depth}: ${sec(r.ms)} (포지션당 ${Math.round(r.perPos)}ms, 최대 ${Math.round(r.slowest)}ms), 장면 ${r.scenes.length}개: ${r.scenes.map((s) => `${s.moveNo}${s.side ? '...' : '.'}${s.played}(${s.best})`).join(' ')}`),
-  ].join('\n');
-  $('result').innerHTML = `
-    <section class="card">
-      <div class="small">${esc(label(g))} · ${Math.ceil(plies / 2)}수 · 포지션 ${positions}개</div>
-      <div class="small">엔진 로드 ${sec(loadMs)} · 기보 따라가기 ${sec(replayMs)}</div>
-      <table id="timing">
-        <thead><tr><th></th><th class="num">전체</th><th class="num">평균</th><th class="num">최대</th><th class="num">장면</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </section>
-    <section class="card">
-      <div class="small">깊이 ${last.depth}에서 찾은 장면</div>
-      ${scenes ? `<ul class="scenes" id="scenes">${scenes}</ul>` : '<p>큰 실수나 놓친 기회가 없었어요.</p>'}
-    </section>
-    <section class="card">
-      <div class="row" style="margin-top:0"><button id="copyBtn" type="button">결과 복사</button></div>
-      <pre id="summary">${esc(summary)}</pre>
-    </section>`;
-  $('copyBtn').onclick = () => navigator.clipboard?.writeText(summary).then(() => status('복사했어요.'), () => status('복사하지 못했어요. 아래 글을 직접 복사하세요.', true));
-}
-</script>
+<script type="module" src="src/app.js"></script>
 </body>
 </html>

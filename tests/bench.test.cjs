@@ -3,29 +3,12 @@
 // (CDP의 CPU 감속은 Web Worker에 걸리지 않아 쓰지 않는다.)
 //   node tests/bench.test.cjs
 //   DEPTHS=10,12,16,20 node tests/bench.test.cjs
-const http = require('http');
-const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 const { chromium, devices } = require('playwright');
+const { serve, fakeChessCom } = require('./helpers.cjs');
 
-const ROOT = path.join(__dirname, '..');
-const FIXTURES = path.join(__dirname, 'fixtures');
 const DEPTHS = (process.env.DEPTHS || '10,12,16').split(',');
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json' };
-
-function serve() {
-  const server = http.createServer((req, res) => {
-    const file = path.join(ROOT, decodeURIComponent(new URL(req.url, 'http://x').pathname));
-    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      res.writeHead(404).end();
-      return;
-    }
-    res.writeHead(200, { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream' });
-    fs.createReadStream(file).pipe(res);
-  });
-  return new Promise((resolve) => server.listen(0, () => resolve(server)));
-}
 
 (async () => {
   const server = await serve();
@@ -34,15 +17,10 @@ function serve() {
   const page = await context.newPage();
   page.on('pageerror', (e) => console.error('pageerror:', e.message));
 
-  await page.route('https://api.chess.com/**', (route) => {
-    const url = route.request().url();
-    const file = url.endsWith('/games/archives') ? 'archives.json' : url.endsWith('/games/2026/10') ? 'games-2026-10.json' : null;
-    if (!file) return route.fulfill({ status: 404, body: '' });
-    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: fs.readFileSync(path.join(FIXTURES, file)) });
-  });
+  await fakeChessCom(page);
 
   try {
-    await page.goto(`http://localhost:${server.address().port}/index.html`);
+    await page.goto(`http://localhost:${server.address().port}/bench.html`);
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     assert.ok(width <= page.viewportSize().width, `가로 스크롤이 생김: ${width}px`);
 
