@@ -2,112 +2,262 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>다시 두기</title>
+<meta name="description" content="Chess.com에서 놓친 장면을 신호 없이 다시 두기">
+<meta name="theme-color" content="#faf8f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161513" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="vendor/cm-chessboard/assets/chessboard.css">
 <link rel="stylesheet" href="vendor/cm-chessboard/assets/extensions/markers/markers.css">
 <link rel="stylesheet" href="vendor/cm-chessboard/assets/extensions/arrows/arrows.css">
 <style>
   :root {
-    --bg: #faf8f4; --fg: #1f1d1a; --muted: #6b665e; --line: #e2ddd3; --card: #ffffff;
-    --accent: #2f6b4f; --accent-fg: #ffffff; --warn: #a3471f;
+    --bg: #faf8f4; --fg: #1f1d1a; --muted: #6b665e; --faint: #a39d93; --line: #e6e1d7; --card: #ffffff;
+    --accent: #2f6b4f; --accent-fg: #ffffff; --accent-soft: #e3efe7;
+    --good: #2e8b57; --bad: #c0392b; --warn: #b8541f;
+    --shadow: 0 1px 2px rgba(31, 29, 26, .06), 0 4px 16px rgba(31, 29, 26, .06);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #161513; --fg: #ece8e1; --muted: #a39d93; --line: #2e2b27; --card: #1f1d1a;
-      --accent: #6fb38f; --accent-fg: #10140f; --warn: #e08a62;
+      --bg: #161513; --fg: #ece8e1; --muted: #a39d93; --faint: #6f6a62; --line: #2e2b27; --card: #1f1d1a;
+      --accent: #6fb38f; --accent-fg: #10140f; --accent-soft: #1f2e25;
+      --good: #6fb38f; --bad: #e07a6a; --warn: #e08a62;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
     }
   }
   :root[data-theme="dark"] {
-    --bg: #161513; --fg: #ece8e1; --muted: #a39d93; --line: #2e2b27; --card: #1f1d1a;
-    --accent: #6fb38f; --accent-fg: #10140f; --warn: #e08a62;
+    --bg: #161513; --fg: #ece8e1; --muted: #a39d93; --faint: #6f6a62; --line: #2e2b27; --card: #1f1d1a;
+    --accent: #6fb38f; --accent-fg: #10140f; --accent-soft: #1f2e25;
+    --good: #6fb38f; --bad: #e07a6a; --warn: #e08a62;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
-  main { max-width: 520px; margin: 0 auto; padding: 16px 16px 32px; }
-  h1 { font-size: 1.25rem; margin: 8px 0 4px; }
-  p.sub { margin: 0 0 20px; color: var(--muted); font-size: .92rem; }
-  form { display: flex; gap: 8px; }
-  input { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); }
-  button { font: inherit; padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font-weight: 600; cursor: pointer; }
-  button:disabled { opacity: .45; }
-  button.ghost { background: transparent; color: var(--muted); padding: 6px 0; font-weight: 400; }
-  .big { width: 100%; padding: 14px; font-size: 1.05rem; margin-top: 16px; }
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .stats div { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 8px; text-align: center; }
-  .stats b { display: block; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
-  .stats span { font-size: .8rem; color: var(--muted); }
-  .note { color: var(--muted); font-size: .88rem; min-height: 1.4em; margin-top: 12px; }
-  .bar { display: flex; justify-content: space-between; align-items: center; padding: 6px 2px; font-size: .95rem; }
-  .bar .who { font-weight: 600; }
-  .bar .side { color: var(--muted); font-size: .85rem; }
-  .clock { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.15rem; padding: 2px 10px; border-radius: 6px; background: var(--card); border: 1px solid var(--line); }
-  .clock.low { color: var(--warn); border-color: var(--warn); }
-  #board { width: 100%; aspect-ratio: 1; }
-  #board[data-active="true"] { cursor: pointer; }
-  .turn { min-height: 1.5em; color: var(--muted); font-size: .9rem; text-align: center; margin-top: 8px; }
-  .result { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 12px; }
-  .result p { margin: 0 0 12px; font-size: 1.05rem; }
-  .result .actions { display: flex; gap: 12px; align-items: center; }
-  .result a { color: var(--muted); font-size: .85rem; margin-left: auto; }
-  .legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: .85rem; color: var(--muted); margin: -4px 0 12px; }
-  .legend .key { display: inline-block; width: 18px; height: 4px; border-radius: 2px; vertical-align: middle; margin-left: 6px; }
-  .legend .key.good { background: #2e8b57; margin-left: 0; }
-  .legend .key.bad { background: #c0392b; }
-  .legend button { margin-left: auto; padding: 0; }
-  .top { display: flex; justify-content: space-between; align-items: baseline; }
-  footer { margin-top: 28px; font-size: .78rem; color: var(--muted); }
-  footer a { color: inherit; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.5 system-ui, -apple-system, "Noto Sans KR", sans-serif;
+    overscroll-behavior: none; -webkit-tap-highlight-color: transparent;
+  }
+  main {
+    max-width: 480px; margin: 0 auto; min-height: 100dvh;
+    padding: calc(12px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+  }
+  [hidden] { display: none !important; }
+  h1 { font-size: 1.35rem; margin: 0; letter-spacing: -.01em; }
+  h2 { font-size: 1rem; margin: 0 0 8px; color: var(--muted); font-weight: 600; }
+  button { font: inherit; border: 0; cursor: pointer; color: inherit; background: none; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 12px; background: var(--accent); color: var(--accent-fg); font-weight: 650; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.block { width: 100%; font-size: 1.05rem; min-height: 54px; }
+  .btn.quiet { background: transparent; color: var(--muted); font-weight: 500; padding: 0 12px; }
+  .icon-btn { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
+  .icon-btn svg { width: 22px; height: 22px; }
+  input { width: 100%; font: inherit; font-size: 1.05rem; min-height: 52px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--card); color: var(--fg); }
+  input:focus { outline: none; border-color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
+  .muted { color: var(--muted); }
+  .small { font-size: .85rem; }
+  .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+
+  /* 처음 */
+  #setup { display: flex; flex-direction: column; gap: 24px; padding-top: 8vh; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { width: 44px; height: 44px; border-radius: 11px; }
+  .pitch { font-size: 1.1rem; margin: 0; }
+  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .steps li { display: flex; gap: 12px; align-items: flex-start; color: var(--muted); }
+  .steps b { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: .8rem; display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; }
+  #setupForm { display: grid; gap: 10px; }
+  .privacy { display: flex; gap: 6px; align-items: center; justify-content: center; }
+
+  /* 홈 */
+  .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 48px; margin-bottom: 12px; }
+  .topbar .brand img { width: 32px; height: 32px; border-radius: 8px; }
+  .topbar h1 { font-size: 1.15rem; }
+  .next { display: grid; gap: 14px; }
+  .next .count { font-size: 2.2rem; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; }
+  .next .count small { font-size: .95rem; font-weight: 500; color: var(--muted); margin-left: 4px; }
+  .working { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+  .stats div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 6px; text-align: center; }
+  .stats b { display: block; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+  .stats span { font-size: .78rem; color: var(--muted); }
+  .recent { margin-top: 20px; }
+  .recent ul { list-style: none; padding: 0; margin: 0; }
+  .recent li { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--line); font-size: .92rem; }
+  .recent li:last-child { border-bottom: 0; }
+  .recent .mark { width: 22px; text-align: center; flex: none; }
+  .recent .when { margin-left: auto; color: var(--faint); font-size: .8rem; white-space: nowrap; }
+
+  /* 두기 */
+  #play { display: flex; flex-direction: column; }
+  .playbar { display: flex; align-items: center; gap: 4px; min-height: 48px; }
+  .playbar .info { flex: 1; text-align: center; color: var(--muted); font-size: .9rem; margin-right: 44px; }
+  .player { display: flex; align-items: center; gap: 10px; padding: 10px 2px; min-height: 56px; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: .9rem; flex: none; }
+  .avatar.w { background: #f4f1ea; color: #333; border: 1px solid #d6d0c4; }
+  .avatar.b { background: #2b2925; color: #eee; }
+  .player .name { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player .rating { color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .thinking { display: inline-flex; gap: 3px; margin-left: 8px; }
+  .thinking i { width: 5px; height: 5px; border-radius: 50%; background: var(--faint); animation: blink 1.2s infinite; }
+  .thinking i:nth-child(2) { animation-delay: .2s; }
+  .thinking i:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+  .clock { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 750; font-size: 1.3rem; padding: 4px 12px; border-radius: 10px; background: var(--card); border: 1.5px solid var(--line); color: var(--muted); transition: background .2s, color .2s, border-color .2s; }
+  .clock.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .clock.low.on { background: var(--warn); border-color: var(--warn); color: #fff; }
+  #board { width: 100%; aspect-ratio: 1; border-radius: 6px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+
+  /* 결과 */
+  .result { margin-top: 12px; animation: rise .25s ease-out; }
+  @keyframes rise { from { transform: translateY(12px); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .result { animation: none; } }
+  .result .head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .result .badge { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 1.1rem; flex: none; }
+  .result .badge.good { background: var(--accent-soft); }
+  .result .badge.bad { background: color-mix(in srgb, var(--bad) 15%, transparent); }
+  .result .title { font-weight: 700; font-size: 1.1rem; }
+  .result p { margin: 0 0 6px; font-size: 1.02rem; }
+  .result .time { color: var(--muted); font-size: .88rem; margin-bottom: 10px; }
+  .legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: .85rem; color: var(--muted); margin-bottom: 14px; }
+  .legend .key { display: inline-block; width: 18px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  .legend .key.good { background: var(--good); }
+  .legend .key.bad { background: var(--bad); }
+  .legend button { margin-left: auto; color: var(--accent); font-weight: 600; padding: 6px 0; }
+  .result .actions { display: flex; gap: 8px; align-items: center; }
+  .result .actions .btn:first-child { flex: 1; }
+  .result a { color: var(--muted); font-size: .85rem; }
+
+  /* 설정 */
+  dialog { border: 0; padding: 0; width: min(480px, 100%); max-width: 100%; margin: auto 0 0; border-radius: 20px 20px 0 0; background: var(--bg); color: var(--fg); }
+  @media (min-width: 520px) { dialog { margin: auto; border-radius: 20px; } }
+  dialog::backdrop { background: rgba(0, 0, 0, .4); }
+  .sheet { padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); display: grid; gap: 18px; }
+  .sheet header { display: flex; align-items: center; justify-content: space-between; }
+  .sheet h2 { margin: 0; color: var(--fg); font-size: 1.1rem; }
+  .sheet section { display: grid; gap: 8px; }
+  .sheet .row { display: flex; gap: 8px; }
+  .sheet .row input { flex: 1; }
+  .danger { color: var(--bad); }
+  .credits { font-size: .8rem; color: var(--muted); line-height: 1.6; }
+  .credits a { color: inherit; }
 </style>
 </head>
 <body>
 <main>
   <section id="setup" hidden>
-    <h1>다시 두기</h1>
-    <p class="sub">Chess.com에서 끝난 내 게임을 이 폰에서 분석해, 놓친 장면 몇 수 전부터 다시 둡니다. 어디가 그 장면인지는 알려 주지 않아요.</p>
+    <div class="brand"><img src="icons/icon-192.png" alt=""><h1>다시 두기</h1></div>
+    <p class="pitch">내가 놓친 장면을, 어디인지 모른 채 다시 둡니다.</p>
+    <ol class="steps">
+      <li><b>1</b><span>Chess.com 아이디만 넣으면 끝난 게임을 가져와요.</span></li>
+      <li><b>2</b><span>이 폰에서 분석해 놓친 기회와 큰 실수를 찾아요.</span></li>
+      <li><b>3</b><span>그 몇 수 전부터 봇과 다시 둬요. 끝나면 한 줄로 알려 줘요.</span></li>
+    </ol>
     <form id="setupForm">
-      <input id="user" placeholder="Chess.com 아이디" autocomplete="off" autocapitalize="off" spellcheck="false" required>
-      <button>시작</button>
+      <input id="user" placeholder="Chess.com 아이디" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" required>
+      <button class="btn block">시작하기</button>
     </form>
+    <p class="privacy small muted">로그인 없음 · 기록은 이 폰에만 저장돼요</p>
   </section>
 
   <section id="home" hidden>
-    <div class="top">
-      <h1>다시 두기</h1>
-      <button class="ghost" id="changeUser" type="button">아이디 바꾸기</button>
+    <div class="topbar">
+      <div class="brand"><img src="icons/icon-192.png" alt=""><h1>다시 두기</h1></div>
+      <button class="icon-btn" id="settingsBtn" type="button" aria-label="설정">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
     </div>
+
+    <div class="card next">
+      <div class="count" id="remaining">0<small>장면 준비됨</small></div>
+      <button class="btn block" id="playBtn" type="button" disabled>두기</button>
+      <div class="working small muted" id="working" role="status"><span class="spinner" id="spinner" hidden></span><span id="note"></span></div>
+    </div>
+
     <div class="stats" id="stats"></div>
-    <button class="big" id="playBtn" type="button" disabled>두기</button>
-    <div class="note" id="note" role="status"></div>
+
+    <div class="recent" id="recentBox" hidden>
+      <h2>최근에 둔 장면</h2>
+      <ul id="recent"></ul>
+    </div>
   </section>
 
   <section id="play" hidden>
-    <div class="top">
-      <span class="side" id="gameInfo"></span>
-      <button class="ghost" id="quitBtn" type="button">그만</button>
+    <div class="playbar">
+      <button class="icon-btn" id="quitBtn" type="button" aria-label="그만두기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <span class="info" id="gameInfo"></span>
     </div>
-    <div class="bar"><span class="who" id="opp"></span></div>
+    <div class="player">
+      <span class="avatar" id="oppAvatar"></span>
+      <span class="name" id="opp"></span>
+      <span class="thinking" id="thinking" hidden aria-label="상대가 생각 중"><i></i><i></i><i></i></span>
+    </div>
     <div id="board"></div>
-    <div class="bar"><span class="who" id="me"></span><span class="clock" id="clock">0:00</span></div>
-    <div class="turn" id="turn"></div>
-    <div class="result" id="result" hidden>
+    <div class="player">
+      <span class="avatar" id="meAvatar"></span>
+      <span class="name" id="me"></span>
+      <span class="clock" id="clock">0:00</span>
+    </div>
+
+    <div class="card result" id="result" hidden>
+      <div class="head"><span class="badge" id="resultBadge"></span><span class="title" id="resultTitle"></span></div>
       <p id="resultText"></p>
-      <div class="legend" id="legend"><span class="key good"></span>좋은 수 <span id="legendBad"><span class="key bad"></span>둔 수</span> <button class="ghost" id="toggleView" type="button"></button></div>
-      <div class="actions">
-        <button id="nextBtn" type="button">다음</button>
-        <button class="ghost" id="homeBtn" type="button">처음으로</button>
-        <a id="resultLink" target="_blank" rel="noopener">원래 게임</a>
+      <div class="time" id="resultTime"></div>
+      <div class="legend" id="legend">
+        <span><span class="key good"></span>좋은 수</span>
+        <span id="legendBad"><span class="key bad"></span>둔 수</span>
+        <button id="toggleView" type="button"></button>
       </div>
+      <div class="actions">
+        <button class="btn" id="nextBtn" type="button">다음 장면</button>
+        <button class="btn quiet" id="homeBtn" type="button">홈</button>
+      </div>
+      <p class="small" style="margin:10px 0 0"><a id="resultLink" target="_blank" rel="noopener">Chess.com에서 원래 게임 보기</a></p>
     </div>
   </section>
-
-  <footer>
-    분석·상대: Stockfish (GPL v3), 소스: <a href="https://github.com/official-stockfish/Stockfish">github.com/official-stockfish/Stockfish</a>
-    · <a href="stockfish/COPYING">라이선스 전문</a>
-    · 판: <a href="https://github.com/shaack/cm-chessboard">cm-chessboard</a> (MIT)
-    · 기물: <a href="https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces/Standard">Wikimedia Commons</a>, Cburnett·Rfc1394 (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA 3.0</a>) · <a href="bench.html">분석 속도 재기</a>
-  </footer>
 </main>
+
+<dialog id="settings">
+  <div class="sheet">
+    <header>
+      <h2>설정</h2>
+      <button class="icon-btn" id="closeSettings" type="button" aria-label="닫기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </header>
+    <section id="installBox" hidden>
+      <button class="btn block" id="installBtn" type="button">홈 화면에 앱으로 설치</button>
+      <span class="small muted">설치하면 앱처럼 열리고, 인터넷이 없어도 쌓인 장면을 둘 수 있어요.</span>
+    </section>
+    <section>
+      <span class="small muted">Chess.com 아이디</span>
+      <form class="row" id="userForm">
+        <input id="userEdit" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+        <button class="btn" type="submit">바꾸기</button>
+      </form>
+      <span class="small muted">아이디를 바꾸면 이 폰에 쌓인 장면과 기록이 지워져요.</span>
+    </section>
+    <section>
+      <span class="small muted" id="storageInfo"></span>
+      <button class="btn quiet danger" id="resetBtn" type="button" style="justify-self:start;padding:0">이 폰의 기록 모두 지우기</button>
+    </section>
+    <section class="credits">
+      <div>분석·상대: Stockfish (GPL v3), 소스: <a href="https://github.com/official-stockfish/Stockfish">github.com/official-stockfish/Stockfish</a> · <a href="stockfish/COPYING">라이선스 전문</a></div>
+      <div>판: <a href="https://github.com/shaack/cm-chessboard">cm-chessboard</a> (MIT)</div>
+      <div>기물: <a href="https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces/Standard">Wikimedia Commons</a>, Cburnett·Rfc1394 (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA 3.0</a>)</div>
+      <div>게임: Chess.com 공개 API · 앱 소스: <a href="https://github.com/lesumein/chess-replay">github.com/lesumein/chess-replay</a> (Apache 2.0) · <a href="bench.html">분석 속도 재기</a></div>
+    </section>
+  </div>
+</dialog>
+
 <script type="module" src="src/app.js"></script>
 </body>
 </html>

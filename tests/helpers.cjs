@@ -9,7 +9,8 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'applic
 
 function serve() {
   const server = http.createServer((req, res) => {
-    const file = path.join(ROOT, decodeURIComponent(new URL(req.url, 'http://x').pathname));
+    let file = path.join(ROOT, decodeURIComponent(new URL(req.url, 'http://x').pathname));
+    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
     if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       res.writeHead(404).end();
       return;

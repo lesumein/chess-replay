@@ -40,9 +40,10 @@ async function anyMove(page) {
 
   try {
     // scene=27: 14...수(27번째 반수) 장면을 고른다. fast: 봇이 기다리지 않는다.
-    await page.goto(`http://localhost:${server.address().port}/index.html?scene=27&fast`);
+    await page.goto(`http://localhost:${server.address().port}/index.html?scene=27&fast&nosw`);
     await page.fill('#user', 'lesum_ein');
     await page.click('#setupForm button');
+    await page.screenshot({ path: path.join(SHOTS, 'app-waiting.png') });
 
     // 분석이 끝나면 바로 장면이 시작된다.
     await page.waitForSelector('#play:not([hidden])', { timeout: 120_000 });
@@ -54,7 +55,7 @@ async function anyMove(page) {
     const h8 = await page.locator('#board rect[data-square="h8"]').boundingBox();
     assert.ok(a1.x > h8.x && a1.y < h8.y, 'a1이 오른쪽 위가 아님');
     // 장면 표시가 없어야 한다
-    assert.ok(!/14|장면|찾/.test(await page.textContent('#play')), '두는 동안 장면 신호가 보임');
+    assert.ok(!/14|장면|찾/.test(await page.innerText('#play')), '두는 동안 장면 신호가 보임');
 
     await page.screenshot({ path: path.join(SHOTS, 'app-play.png') });
 
@@ -67,7 +68,8 @@ async function anyMove(page) {
     await page.waitForSelector('#result:not([hidden])', { timeout: 120_000 });
     const text = await page.textContent('#resultText');
     console.log('결과:', text);
-    assert.match(text, /14수에서 Nxf3\+를 찾았어요 ✅/);
+    assert.match(text, /14수에서 Nxf3\+를 찾았어요/);
+    assert.strictEqual(await page.textContent('#resultTitle'), '찾았어요');
     // 장면 포지션으로 돌아가 좋은 수를 화살표로 보여 준다
     await page.waitForSelector('#board .arrow-success');
     assert.ok(await page.$('#board g[data-square="e5"][data-piece="bn"]'), '장면 포지션이 아님');
@@ -83,6 +85,7 @@ async function anyMove(page) {
     const stats = (await page.textContent('#stats')).replace(/\s+/g, ' ');
     console.log('홈:', stats);
     assert.match(stats, /1\/1\s*찾은 장면/);
+    assert.match(await page.textContent('#recent'), /14수 놓친 기회 · 찾았어요/);
     assert.match(stats, /1\s*최근 2주 연 날/);
     await page.screenshot({ path: path.join(SHOTS, 'app-home.png') });
 

@@ -7,7 +7,7 @@ export const SECONDS_PER_MOVE = 20; // 래피드 정도: 내 수 하나에 평�
 const JUDGE_DEPTH = 14;
 const OK_LOSS = 120; // 최선과 이 정도 차이면 찾은 것으로 본다
 
-// ui: { board, clock(ms), status(text) }
+// ui: { board, clock(ms), turn('me' | 'opp' | null) }
 // signal로 중간에 그만두면 null을 돌려준다.
 export async function playScene(scene, engine, ui, { botDelay = 600, signal } = {}) {
   const side = scene.side;
@@ -27,7 +27,7 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal } = 
     if (!legal.length) break;
     let uci;
     if (ply % 2 === side) {
-      ui.status('');
+      ui.turn('me');
       const t0 = performance.now();
       uci = await waitForMove(ui, fen, legal, last, clock, (left) => ui.clock(left), signal);
       if (signal?.aborted) return null;
@@ -43,7 +43,7 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal } = 
       if (onLine && uci !== scene.line[ply - scene.startPly]) onLine = false;
     } else {
       ui.board.set(fen, [], last);
-      ui.status('상대 차례');
+      ui.turn('opp');
       const original = onLine ? scene.line[ply - scene.startPly] : null;
       const [move] = await Promise.all([original ?? botMove(engine, fen, legal, scene.opp.rating ?? 800), sleep(botDelay)]);
       uci = move;
@@ -55,7 +55,7 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal } = 
     if (ply > endPly) break;
   }
   ui.board.set(fen, [], last);
-  ui.status('');
+  ui.turn(null);
   const result = await judge(scene, engine, atScene, timedOut);
   return { ...result, review: await review(scene, engine, atScene, result.outcome), end: { fen, last } };
 }
@@ -135,9 +135,9 @@ export function describe(scene, outcome, userSan = '') {
       : `${n}에 ${josa(scene.bestSan, '이', '가')} 있었어요. ${motif(scene)}`.trim();
   switch (outcome) {
     case 'found':
-      if (scene.fake) return `${answer} 잘 넘겼어요 ✅`;
-      if (scene.kind === 'blunder') return `${n}에서 위험을 피했어요 ✅`;
-      return userSan === scene.bestSan ? `${n}에서 ${josa(scene.bestSan, '을', '를')} 찾았어요 ✅` : `${n}에서 좋은 수를 찾았어요 ✅ (${scene.bestSan}도 있었어요)`;
+      if (scene.fake) return `${answer} 흔들리지 않고 잘 넘겼어요.`;
+      if (scene.kind === 'blunder') return `${n}에서 위험을 피했어요. ${josa(scene.bestSan, '이', '가')} 안전한 수였어요.`;
+      return userSan === scene.bestSan ? `${n}에서 ${josa(scene.bestSan, '을', '를')} 찾았어요.` : `${n}에서 ${userSan}, 좋은 수였어요. ${josa(scene.bestSan, '도', '도')} 있었어요.`;
     case 'missed':
       if (scene.fake) return `${answer} ${userSan} 뒤로 형세가 나빠졌어요.`;
       if (scene.kind === 'blunder' && userSan === scene.playedSan && scene.refuteSan) {
@@ -145,8 +145,8 @@ export function describe(scene, outcome, userSan = '') {
       }
       return answer;
     case 'timeout':
-      return `시간이 다 됐어요. ${answer}`;
+      return answer;
     default:
-      return `원래 게임과 다른 길로 갔어요. ${answer}`;
+      return `원래 게임과 달라져서 그 장면이 오지 않았어요. ${answer}`;
   }
 }
