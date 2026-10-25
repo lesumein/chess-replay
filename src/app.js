@@ -210,11 +210,13 @@ async function startScene() {
   board.onPosition = (fen) => showMaterial(fen, meColor, oppColor);
   playEngine ??= new Engine(ENGINE_URL);
   await playEngine.init();
-  const result = await playScene(scene, playEngine, { board, clock: setClock, turn: setTurn }, {
+  $('history').hidden = false;
+  const result = await playScene(scene, playEngine, { board, clock: setClock, turn: setTurn, history: setHistory }, {
     botDelay: params.has('fast') ? 0 : 600,
     signal: mine.signal,
   });
   if (!result) return;
+  $('history').hidden = true;
   const { text, review, end, ...record } = result;
   await store.add('results', record);
   showResult(scene, result);
@@ -239,16 +241,22 @@ function showResult(scene, result) {
 }
 
 // 결과 아래에서 수순을 한 수씩 넘겨 본다.
-// 좋은 수: 장면에서 좋은 수부터 이득이 확정될 때까지 / 둔 수: 내가(또는 원래 게임에서) 둔 수와 상대의 응수 / 끝난 판
+// 좋은 수: 장면에서 좋은 수부터 이득이 확정될 때까지 / 둔 수: 내가(또는 원래 게임에서) 둔 수와 상대의 응수
+// 끝난 판: 이번에 둔 수를 시작부터 끝까지
 function showReview(scene, review, end) {
-  const { lines } = review;
+  const fromScene = { fen: review.fen, last: review.last, startPly: scene.ply };
+  const views = {
+    good: review.lines.good && { ...fromScene, steps: review.lines.good, arrow: 'good' },
+    bad: review.lines.bad && { ...fromScene, steps: review.lines.bad, arrow: 'bad' },
+    end: { ...end, arrow: null },
+  };
   const tabs = [...$('tabs').querySelectorAll('button')];
-  for (const t of tabs) t.hidden = t.dataset.view !== 'end' && !lines[t.dataset.view];
-  let view = lines.good ? 'good' : lines.bad ? 'bad' : 'end';
-  let step = 0; // 0 = 장면 포지션, k = k수 둔 뒤
+  for (const t of tabs) t.hidden = !views[t.dataset.view];
+  let view = views.good ? 'good' : views.bad ? 'bad' : 'end';
+  let step = 0; // 0 = 시작 포지션, k = k수 둔 뒤
 
-  const label = (k) => {
-    const ply = scene.ply + k;
+  const label = (startPly, k) => {
+    const ply = startPly + k;
     const n = Math.floor(ply / 2) + 1;
     if (ply % 2 === 0) return `<i>${n}.</i>`;
     return k === 0 ? `<i>${n}...</i>` : '';
@@ -256,20 +264,15 @@ function showReview(scene, review, end) {
 
   function draw() {
     tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.view === view)));
-    const line = lines[view];
-    $('stepper').hidden = !line;
-    if (!line) {
-      $('lineText').innerHTML = '<span>이번에 두고 끝난 모습이에요.</span>';
-      board.set(end.fen, [], end.last);
-      return;
-    }
-    const fen = step ? line[step - 1].fen : review.fen;
-    const last = step ? line[step - 1].uci : review.last;
+    const v = views[view];
+    const line = v.steps;
+    const fen = step ? line[step - 1].fen : v.fen;
+    const last = step ? line[step - 1].uci : v.last;
     const next = line[step];
-    // 다음에 둘 수를 화살표로
-    board.set(fen, [], last, next ? [{ uci: next.uci, kind: view }] : []);
+    // 좋은 수·둔 수는 다음에 둘 수를 화살표로
+    board.set(fen, [], last, v.arrow && next ? [{ uci: next.uci, kind: v.arrow }] : []);
     $('lineText').innerHTML = line
-      .map((m, k) => `${label(k)}<span class="${k < step - 1 ? 'done' : k === step - 1 ? 'now' : ''}" data-step="${k + 1}">${esc(m.san)}</span>`)
+      .map((m, k) => `${label(v.startPly, k)}<span class="${k < step - 1 ? 'done' : k === step - 1 ? 'now' : ''}" data-step="${k + 1}">${esc(m.san)}</span>`)
       .join(' ');
     $('stepInfo').textContent = `${step} / ${line.length}`;
     $('prevStep').disabled = step === 0;
@@ -279,17 +282,46 @@ function showReview(scene, review, end) {
   for (const t of tabs) {
     t.onclick = () => {
       view = t.dataset.view;
-      step = 0;
+      // 끝난 판은 끝 모습부터, 나머지는 장면부터
+      step = view === 'end' ? views.end.steps.length : 0;
       draw();
     };
   }
   $('prevStep').onclick = () => { step = Math.max(0, step - 1); draw(); };
-  $('nextStep').onclick = () => { step = Math.min(lines[view]?.length ?? 0, step + 1); draw(); };
+  $('nextStep').onclick = () => { step = Math.min(views[view].steps.length, step + 1); draw(); };
   $('lineText').onclick = (e) => {
     const k = e.target.closest('[data-step]')?.dataset.step;
     if (k) { step = Number(k); draw(); }
   };
   draw();
+}
+
+// 두는 동안 지나간 수 되돌려 보기. 새 수가 오면 지금 판으로 돌아온다.
+let past = [];
+let viewing = null; // null = 지금 판, 숫자 = history에서 보고 있는 칸
+
+function setHistory(h) {
+  past = h;
+  viewing = null;
+  updateHistoryButtons();
+}
+
+function viewHistory(i) {
+  if (i >= past.length - 1) {
+    viewing = null;
+    board.backToLive();
+  } else {
+    viewing = Math.max(0, i);
+    board.peek(past[viewing].fen, past[viewing].last);
+  }
+  updateHistoryButtons();
+}
+
+function updateHistoryButtons() {
+  const at = viewing ?? past.length - 1;
+  $('histPrev').disabled = at <= 0;
+  $('histNext').disabled = viewing === null;
+  $('history').classList.toggle('peeking', viewing !== null);
 }
 
 // ---- 설정 ----
@@ -377,6 +409,8 @@ $('playBtn').addEventListener('click', startScene);
 $('nextBtn').addEventListener('click', startScene);
 $('homeBtn').addEventListener('click', goHome);
 $('quitBtn').addEventListener('click', goHome);
+$('histPrev').addEventListener('click', () => viewHistory((viewing ?? past.length - 1) - 1));
+$('histNext').addEventListener('click', () => viewHistory((viewing ?? past.length - 1) + 1));
 
 if ('serviceWorker' in navigator && !params.has('nosw') && !NATIVE) {
   navigator.serviceWorker.register('sw.js').catch(() => {});

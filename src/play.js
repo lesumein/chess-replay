@@ -7,7 +7,7 @@ export const SECONDS_PER_MOVE = 20; // 래피드 정도: 내 수 하나에 평�
 const JUDGE_DEPTH = 14;
 const OK_LOSS = 120; // 최선과 이 정도 차이면 찾은 것으로 본다
 
-// ui: { board, clock(ms), turn('me' | 'opp' | null) }
+// ui: { board, clock(ms), turn('me' | 'opp' | null), history(positions) }
 // signal로 중간에 그만두면 null을 돌려준다.
 export async function playScene(scene, engine, ui, { botDelay = 600, signal } = {}) {
   const side = scene.side;
@@ -19,8 +19,11 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal } = 
   let clock = SECONDS_PER_MOVE * 1000 * (LEAD + 1 + AFTER);
   let atScene = null; // { fen, legal, uci, ms }
   let timedOut = false;
+  const history = [{ fen, last: null }]; // 이번에 지나온 포지션들(되돌려 보기용)
+  const played = [];
 
   ui.clock(clock);
+  ui.history?.(history);
   await engine.newGame();
   while (true) {
     const legal = await engine.legalMoves(fen);
@@ -51,13 +54,18 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal } = 
     }
     ({ fen } = await engine.play(fen, uci));
     last = uci;
+    played.push(uci);
+    history.push({ fen, last });
+    ui.history?.(history);
     ply++;
     if (ply > endPly) break;
   }
   ui.board.set(fen, [], last);
   ui.turn(null);
   const { badLine, ...result } = await judge(scene, engine, atScene, timedOut);
-  return { ...result, review: await review(scene, engine, atScene, result.outcome, badLine), end: { fen, last } };
+  // 끝난 판: 이번에 둔 수를 시작부터 넘겨 볼 수 있게
+  const end = { fen: scene.startFen, last: null, startPly: scene.startPly, steps: await walkLine(engine, scene.startFen, played) };
+  return { ...result, review: await review(scene, engine, atScene, result.outcome, badLine), end };
 }
 
 function waitForMove(ui, fen, legal, last, clockMs, onTick, signal) {

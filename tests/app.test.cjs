@@ -65,7 +65,19 @@ async function anyMove(page) {
     await page.screenshot({ path: path.join(SHOTS, 'app-play.png') });
 
     // 원래 게임대로 10...Nge5 11...d3 12...Na5 13...Be6, 그리고 14...Nxf3+
-    for (const uci of ['g4e5', 'd4d3', 'c6a5', 'c8e6']) await move(page, uci);
+    for (const uci of ['g4e5', 'd4d3']) await move(page, uci);
+    // 지난 수 되돌려 보기: 두 칸 전(내 d3 전)으로 갔다가 돌아오면 다시 둘 수 있다
+    await page.waitForSelector('#board[data-active="true"]');
+    await page.click('#histPrev');
+    await page.click('#histPrev');
+    await page.waitForSelector('#board g[data-square="d4"][data-piece="bp"]');
+    assert.strictEqual(await page.getAttribute('#board', 'data-active'), 'false');
+    assert.ok(await page.isVisible('#histNote'));
+    await page.click('#histNext');
+    await page.click('#histNext');
+    await page.waitForSelector('#board[data-active="true"]');
+    assert.ok(await page.$('#board g[data-square="d3"][data-piece="bp"]'));
+    for (const uci of ['c6a5', 'c8e6']) await move(page, uci);
     assert.ok(await page.$('#board g[data-square="f3"][data-piece="wn"]'), '원래 게임대로라면 f3에 백 나이트가 있어야 함');
     await move(page, 'e5f3');
     while (await anyMove(page));
@@ -92,6 +104,12 @@ async function anyMove(page) {
     assert.ok(await page.isHidden('#tabs [data-view="bad"]'));
     await page.click('#tabs [data-view="end"]');
     await page.waitForFunction(() => !document.querySelector('#board .arrow-success'));
+    // 끝난 판: 이번에 둔 수를 시작부터 넘겨 볼 수 있다(10...Nge5부터)
+    assert.match(await page.innerText('#lineText'), /^10\.\.\.\s*Nge5 11\./);
+    assert.ok(await page.isDisabled('#nextStep'));
+    await page.click('#prevStep');
+    assert.ok(await page.isEnabled('#nextStep'));
+    assert.ok(await page.isHidden('#history'));
     // 빈 줄이 있어도 칸이 정사각형
     const sizes = await page.$$eval('#board rect[data-square]', (els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
     assert.ok(Math.max(...sizes) - Math.min(...sizes) <= 1, `칸 높이가 다름: ${Math.min(...sizes)}~${Math.max(...sizes)}`);

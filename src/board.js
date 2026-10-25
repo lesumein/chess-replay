@@ -25,7 +25,24 @@ export class Board {
   // legal: 지금 둘 수 있는 수(UCI). 비어 있으면 손댈 수 없다.
   // arrows: [{ uci, kind: 'good' | 'bad' }]
   set(fen, legal = [], lastMove = null, arrows = []) {
-    // 앞의 그리기(애니메이션)가 끝난 뒤에 차례로
+    this.live = [fen, legal, lastMove, arrows];
+    this.peeking = false;
+    return this.enqueue(...this.live);
+  }
+
+  // 지나간 포지션을 잠깐 본다(손댈 수 없음). backToLive()로 지금 판으로 돌아온다.
+  peek(fen, lastMove = null) {
+    this.peeking = true;
+    return this.enqueue(fen, [], lastMove, []);
+  }
+
+  backToLive() {
+    this.peeking = false;
+    return this.live ? this.enqueue(...this.live) : this.queue;
+  }
+
+  // 앞의 그리기(애니메이션)가 끝난 뒤에 차례로
+  enqueue(fen, legal, lastMove, arrows) {
     this.queue = this.queue.then(() => this.draw(fen, legal, lastMove, arrows));
     return this.queue;
   }

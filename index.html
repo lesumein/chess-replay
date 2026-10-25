@@ -120,6 +120,12 @@
   .clock.low.on { background: var(--warn); border-color: var(--warn); color: #fff; }
   #board { width: 100%; aspect-ratio: 1; border-radius: 6px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
 
+  .history { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+  .history .icon-btn { width: 64px; background: var(--card); border: 1px solid var(--line); color: var(--fg); }
+  .history .icon-btn:disabled { opacity: .35; }
+  .history #histNote { color: var(--warn); visibility: hidden; }
+  .history.peeking #histNote { visibility: visible; }
+
   /* 결과 */
   .result { margin-top: 12px; animation: rise .25s ease-out; }
   @keyframes rise { from { transform: translateY(12px); opacity: 0; } }
@@ -222,6 +228,11 @@
       <span class="avatar" id="meAvatar"></span>
       <span class="who"><span class="name" id="me"></span><span class="material" id="meMaterial"></span></span>
       <span class="clock" id="clock">0:00</span>
+    </div>
+    <div class="history" id="history" hidden>
+      <button class="icon-btn" id="histPrev" type="button" aria-label="이전 수 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="small" id="histNote">지난 수를 보는 중</span>
+      <button class="icon-btn" id="histNext" type="button" aria-label="다음 수 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>
     </div>
 
     <div class="card result" id="result" hidden>
