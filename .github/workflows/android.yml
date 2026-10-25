@@ -1,17 +1,26 @@
-# main에 올라갈 때마다 안드로이드 앱을 빌드해 Actions 결과물로 올린다.
-# 저장소 Secrets에 서명 키가 있으면 서명된 릴리즈 APK·AAB도 만든다.
-#   ANDROID_KEYSTORE_BASE64  키 파일(.jks/.keystore)을 base64로
-#   ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
 name: android
+
+# main에 푸시하면 서명된 APK·AAB를 아티팩트로 올린다.
+# v* 태그를 푸시하거나, 수동 실행에서 release에 v0.1.0 같은 이름을 넣으면 릴리스로 올린다.
+# 서명 시크릿(KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD)은
+# genshin-checkin 저장소의 copy-secrets 워크플로로 같은 업로드 키를 넣는다.
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release:
+        description: "릴리스 태그 (예: v0.1.0). 비우면 빌드만 한다."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
 jobs:
-  apk:
+  build:
     runs-on: ubuntu-latest
-    env:
-      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,28 +32,40 @@ jobs:
           java-version: 21
       - run: npm ci
       - run: npm run sync
-      - name: 서명 키 준비
-        if: env.HAS_KEY == 'true'
+
+      - name: Restore signing key
         working-directory: android
         env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 시크릿이 없습니다. genshin-checkin의 copy-secrets로 넣으세요."
+            exit 1
+          fi
           echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
-          printf 'storeFile=release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
-      - name: 빌드
+          printf 'storeFile=release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+
+      - name: Build signed APK
         working-directory: android
-        run: ./gradlew assembleDebug ${{ env.HAS_KEY == 'true' && 'assembleRelease bundleRelease' || '' }} --no-daemon
+        run: |
+          ./gradlew assembleRelease bundleRelease --no-daemon
+          mv app/build/outputs/apk/release/app-release.apk ../chess-replay.apk
+          mv app/build/outputs/bundle/release/app-release.aab ../chess-replay.aab
+
       - uses: actions/upload-artifact@v4
         with:
-          name: chess-replay-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-      - uses: actions/upload-artifact@v4
-        if: env.HAS_KEY == 'true'
-        with:
-          name: chess-replay-release
+          name: chess-replay
           path: |
-            android/app/build/outputs/apk/release/app-release.apk
-            android/app/build/outputs/bundle/release/app-release.aab
+            chess-replay.apk
+            chess-replay.aab
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release || github.ref_name }}
+        # 태그가 없으면 현재 커밋에 새로 만든다.
+        run: gh release create "$TAG" chess-replay.apk chess-replay.aab --title "$TAG" --target "$GITHUB_SHA" --generate-notes

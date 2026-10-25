@@ -69,9 +69,11 @@ Chess.com에서 내가 놓친 장면을, "여기 뭔가 있다"는 신호 없이
 ### 안드로이드 앱 (Capacitor 8.5.3)
 - `android/`: Capacitor가 만든 프로젝트. 직접 쓴 것은 `MainActivity.java`(작업 예약)와 `AnalyzeWorker.java`(백그라운드 분석)뿐.
 - 화면 없는 WebView도 주소를 앱과 같은 `https://localhost`로 맞춰, 같은 IndexedDB에 장면을 쌓는다. 다음에 앱을 열면 홈에 "앱을 닫아 둔 동안 N개 만들어 뒀어요".
-- 빌드: `npm ci && npm run apk` → `android/app/build/outputs/apk/debug/app-debug.apk` (JDK 21, Android SDK 36 필요). main에 올리면 GitHub Actions(`android`)가 같은 APK를 결과물로 올린다.
+- 빌드: `npm ci && npm run apk` → `android/app/build/outputs/apk/debug/app-debug.apk` (JDK 21, Android SDK 36 필요).
+- 릴리스: GitHub Actions(`android`)가 main 푸시마다 서명된 APK·AAB를 아티팩트로 올리고, `v*` 태그나 수동 실행(release 입력)이면 GitHub 릴리스로 낸다.
+- 서명 키: 다른 앱과 같은 업로드 키. `genshin-checkin` 저장소의 `copy-secrets` 워크플로를 대상 `lesumein/chess-replay`로 수동 실행하면 시크릿 4개(`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`)가 들어온다.
 - 앱 아이콘·시작 화면: `node scripts/make-icons.cjs` (`icons/icon.svg`에서 만든다).
-- 플레이 스토어에 올리려면: 개발자 계정(1회 $25), 서명 키(release keystore), `assembleRelease`/`bundleRelease`, 개인정보처리방침 페이지(수집 없음이라도 필요).
+- 플레이 스토어에 올리려면: 개발자 계정, 위 AAB, 개인정보처리방침 페이지(수집 없음이라도 필요).
 - 백그라운드 분석은 에뮬레이터 없이 만들어서 아직 실제 폰에서 확인하지 못했다.
 
 ### 웹
