@@ -121,6 +121,18 @@ async function anyMove(page) {
     await page.waitForSelector('#board g[data-square="f3"][data-piece="bn"]');
     assert.ok((await page.textContent('#stepCount')).startsWith(`${at + 1} / `));
     assert.strictEqual(await page.textContent('#stepInfo'), '14... Nxf3+');
+    // ◀를 누르고 있으면 반복해서 처음까지 간다(점점 빨라짐)
+    const prevBox = await page.locator('#prevStep').boundingBox();
+    await page.mouse.move(prevBox.x + prevBox.width / 2, prevBox.y + prevBox.height / 2);
+    await page.mouse.down();
+    await page.waitForFunction(() => document.querySelector('#stepCount').textContent.startsWith('0 / '), null, { timeout: 4000 });
+    await page.mouse.up();
+    assert.ok(await page.isDisabled('#prevStep'));
+    // 한 번 누르면 한 칸만
+    await page.click('#nextStep');
+    assert.ok((await page.textContent('#stepCount')).startsWith('1 / '));
+    for (let i = 1; i < at + 1; i++) await page.click('#nextStep');
+    await page.waitForSelector('#board g[data-square="f3"][data-piece="bn"]');
     // ◀ ▶ 바는 화면 아래에 떠 있다
     const bar = await page.locator('#stepper').boundingBox();
     const vh = page.viewportSize().height;

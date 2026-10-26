@@ -610,8 +610,6 @@ function showReview(scene, review, end, cmp) {
     };
   }
   const go = (d) => { step = Math.max(0, Math.min(views[view].steps.length, step + d)); draw(); };
-  $('prevStep').onclick = () => go(-1);
-  $('nextStep').onclick = () => go(1);
   reviewGo = go;
   const jump = (e) => {
     const k = e.target.closest('[data-step]')?.dataset.step;
@@ -864,8 +862,33 @@ for (const id of ['recent', 'doneList']) {
   });
 }
 $('quitBtn').addEventListener('click', goHome);
-$('histPrev').addEventListener('click', () => viewHistory((viewing ?? past.length - 1) - 1));
-$('histNext').addEventListener('click', () => viewHistory((viewing ?? past.length - 1) + 1));
+// ◀ ▶는 누르고 있으면 반복하고, 점점 빨라진다(손을 떼거나 끝에 닿으면 멈춤)
+function holdRepeat(el, fn) {
+  let timer = null;
+  const stop = () => { clearTimeout(timer); timer = null; };
+  el.addEventListener('pointerdown', (e) => {
+    if (el.disabled || e.button > 0) return;
+    e.preventDefault();
+    stop();
+    fn();
+    let wait = 380;
+    const tick = () => {
+      if (el.disabled) return stop();
+      fn();
+      wait = Math.max(45, wait * 0.8);
+      timer = setTimeout(tick, wait);
+    };
+    timer = setTimeout(tick, wait);
+  });
+  for (const t of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(t, stop);
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+  // 키보드(Enter·Space)로 누를 때는 click만 온다
+  el.addEventListener('click', (e) => { if (e.detail === 0) fn(); });
+}
+holdRepeat($('prevStep'), () => reviewGo?.(-1));
+holdRepeat($('nextStep'), () => reviewGo?.(1));
+holdRepeat($('histPrev'), () => viewHistory((viewing ?? past.length - 1) - 1));
+holdRepeat($('histNext'), () => viewHistory((viewing ?? past.length - 1) + 1));
 
 // 웹: 새 버전의 서비스 워커가 자리 잡으면, 두는 중이 아닐 때 한 번 새로 고친다
 let updateReady = false;
