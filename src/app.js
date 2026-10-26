@@ -296,7 +296,8 @@ function showResult(scene, result) {
   showReview(scene, result.review, result.end, result.cmp);
   $('resultLink').href = `${scene.gameUrl}?move=${scene.ply + 1}`;
   $('result').hidden = false;
-  $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // 넘겨 볼 때 판이 잘리지 않게 판 위쪽에 맞춘다(결과 글은 아래로 내려 보면 된다)
+  $('opp').closest('.player').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // 결과 아래에서 수순을 한 수씩 넘겨 본다.
@@ -304,7 +305,34 @@ function showResult(scene, result) {
 // 끝난 판: 이번에 둔 수를 시작부터 끝까지
 let cmpBoards = null; // 비교 탭의 작은 판 두 개(원래, 이번)
 
+// 결과를 넘겨 보는 중이면 판 탭·밀기·키보드로도 넘긴다(◀ ▶ 바는 화면 아래에 떠 있다)
+let reviewGo = null;
+
+function reviewTap(el) {
+  let x0 = null;
+  el.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
+  el.addEventListener('pointerup', (e) => {
+    if (!reviewGo || x0 == null) return;
+    const dx = e.clientX - x0;
+    x0 = null;
+    if (Math.abs(dx) > 40) return reviewGo(dx < 0 ? 1 : -1); // 밀기: 왼쪽으로 밀면 다음
+    const r = el.getBoundingClientRect();
+    const at = (e.clientX - r.left) / r.width;
+    if (at < 0.4) reviewGo(-1);
+    else if (at > 0.6) reviewGo(1);
+  });
+}
+reviewTap($('board'));
+reviewTap($('cmpPanel'));
+document.addEventListener('keydown', (e) => {
+  if (!reviewGo || e.target.closest('input, textarea')) return;
+  if (e.key === 'ArrowLeft') reviewGo(-1);
+  if (e.key === 'ArrowRight') reviewGo(1);
+});
+
 function closeCompare() {
+  reviewGo = null;
+  $('play').classList.remove('reviewing');
   $('play').classList.remove('comparing');
   cmpBoards?.forEach((b) => b.destroy());
   cmpBoards = null;
@@ -392,10 +420,17 @@ function showReview(scene, review, end, cmp) {
     if (comparing) drawCompare();
     else drawLine();
     const len = views[view].steps.length;
-    $('stepInfo').textContent = comparing ? (step ? moveNo(step - 1) : '시작') : `${step} / ${len}`;
+    // 가운데엔 지금 수(번호와 수), 비교에선 번호만
+    const cur = step && !comparing ? views[view].steps[step - 1] : null;
+    $('stepInfo').textContent = !step ? '시작' : comparing ? moveNo(step - 1) : `${moveAt(views[view].startPly, step - 1)} ${cur.san}`;
+    $('stepCount').textContent = `${step} / ${len}`;
     $('prevStep').disabled = step === 0;
     $('nextStep').disabled = step === len;
   }
+  const moveAt = (startPly, k) => {
+    const ply = startPly + k;
+    return `${Math.floor(ply / 2) + 1}${ply % 2 ? '...' : '.'}`;
+  };
 
   for (const t of tabs) {
     t.onclick = () => {
@@ -404,8 +439,11 @@ function showReview(scene, review, end, cmp) {
       draw();
     };
   }
-  $('prevStep').onclick = () => { step = Math.max(0, step - 1); draw(); };
-  $('nextStep').onclick = () => { step = Math.min(views[view].steps.length, step + 1); draw(); };
+  const go = (d) => { step = Math.max(0, Math.min(views[view].steps.length, step + d)); draw(); };
+  $('prevStep').onclick = () => go(-1);
+  $('nextStep').onclick = () => go(1);
+  reviewGo = go;
+  $('play').classList.add('reviewing');
   const jump = (e) => {
     const k = e.target.closest('[data-step]')?.dataset.step;
     if (k) { step = Number(k); draw(); }

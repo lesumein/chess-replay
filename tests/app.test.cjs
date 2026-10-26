@@ -97,16 +97,28 @@ async function anyMove(page) {
     // 장면 포지션으로 돌아가 좋은 수를 화살표로 보여 준다
     await page.waitForSelector('#board .arrow-success');
     assert.ok(await page.$('#board g[data-square="e5"][data-piece="bn"]'), '장면 포지션이 아님');
+    await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(SHOTS, 'app-result.png') });
     // 좋은 수 수순: 시작한 판부터 장면까지(원래 흐름), 그다음 Nxf3+와 이득까지. 장면 포지션에서 열린다
     const line = await page.innerText('#lineText');
     console.log('수순:', line.replace(/\s+/g, ' '));
     assert.match(line, /^1[0-2]\.\.\.\s*(Nge5|d3|Na5) /);
     assert.match(line, /장면\s*14\.\.\.\s*Nxf3\+ 15\./);
-    const [at] = (await page.textContent('#stepInfo')).split(' / ').map(Number);
+    const [at] = (await page.textContent('#stepCount')).split(' / ').map(Number);
     await page.click('#nextStep');
     await page.waitForSelector('#board g[data-square="f3"][data-piece="bn"]');
-    assert.ok((await page.textContent('#stepInfo')).startsWith(`${at + 1} / `));
+    assert.ok((await page.textContent('#stepCount')).startsWith(`${at + 1} / `));
+    assert.strictEqual(await page.textContent('#stepInfo'), '14... Nxf3+');
+    // ◀ ▶ 바는 화면 아래에 떠 있다
+    const bar = await page.locator('#stepper').boundingBox();
+    const vh = page.viewportSize().height;
+    assert.ok(bar.y + bar.height <= vh && bar.y > vh - 120, `조작 바가 화면 아래에 없음: ${bar.y}`);
+    // 판 왼쪽을 누르면 이전 수, 오른쪽은 다음 수
+    const bb = await page.locator('#board').boundingBox();
+    await page.mouse.click(bb.x + bb.width * 0.15, bb.y + bb.height / 2);
+    await page.waitForSelector('#board g[data-square="e5"][data-piece="bn"]');
+    await page.mouse.click(bb.x + bb.width * 0.85, bb.y + bb.height / 2);
+    await page.waitForSelector('#board g[data-square="f3"][data-piece="bn"]');
     await page.click('#prevStep');
     await page.waitForSelector('#board g[data-square="e5"][data-piece="bn"]');
     // ◀로 장면 앞(원래 흐름)으로 거슬러 갈 수 있다
