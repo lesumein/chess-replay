@@ -56,7 +56,7 @@ async function anyMove(page) {
     assert.ok(a1.x > h8.x && a1.y < h8.y, 'a1이 오른쪽 위가 아님');
     // 장면 표시가 없어야 한다
     assert.ok(!/14|장면|찾/.test(await page.innerText('#play')), '두는 동안 장면 신호가 보임');
-    assert.match(await page.textContent('#gameInfo'), /블리츠 · 이긴 판$/);
+    assert.match(await page.textContent('#gameInfo'), /블리츠 5\+5 · 이긴 판$/);
 
     // 기물 우위: 3.Bxf7+ Kxf7로 흑(나)이 비숍을, 백이 폰을 잡아 흑 +3 (7...exd4로 폰 하나 더)
     await page.waitForFunction(() => document.querySelector('#meMaterial').textContent.includes('+3'));
