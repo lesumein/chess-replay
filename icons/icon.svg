@@ -1,13 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#2f6b4f"/>
-  <!-- 가운데 2×2 칸 -->
-  <g transform="translate(186 186)">
-    <rect width="70" height="70" fill="#f3ecd9"/>
-    <rect x="70" width="70" height="70" fill="#9fc3a8"/>
-    <rect y="70" width="70" height="70" fill="#9fc3a8"/>
-    <rect x="70" y="70" width="70" height="70" fill="#f3ecd9"/>
-  </g>
-  <!-- 되감기 화살표 -->
-  <path d="M256 126a130 130 0 1 1-118 75" fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round"/>
-  <path d="M100 168l46-4 10 46" fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="512" height="512" fill="#1b1a17"/>
+  <!-- 판 한 귀퉁이와 놓친 칸, 둘레에 되감기 화살표 -->
+  <rect x="176" y="176" width="160" height="160" fill="#ecdcbc"/>
+  <g><rect x="216" y="176" width="40" height="40" fill="#b88b5e"/><rect x="296" y="176" width="40" height="40" fill="#b88b5e"/><rect x="176" y="216" width="40" height="40" fill="#b88b5e"/><rect x="256" y="216" width="40" height="40" fill="#b88b5e"/><rect x="216" y="256" width="40" height="40" fill="#b88b5e"/><rect x="296" y="256" width="40" height="40" fill="#b88b5e"/><rect x="176" y="296" width="40" height="40" fill="#b88b5e"/><rect x="256" y="296" width="40" height="40" fill="#b88b5e"/></g>
+  <!-- 놓친 칸 -->
+  <rect x="256" y="216" width="40" height="40" fill="#a5412d"/>
+  <rect x="176" y="176" width="160" height="160" fill="none" stroke="#f3eee4" stroke-width="7"/>
+  <path d="M131.3 184A144 144 0 1 0 262 112" fill="none" stroke="#f3eee4" stroke-width="28" stroke-linecap="round"/>
+  <path d="M206 112l64-38v76z" fill="#f3eee4" stroke="#f3eee4" stroke-width="10" stroke-linejoin="round"/>
 </svg>

@@ -80,7 +80,7 @@ Chess.com에서 내가 놓친 장면을, "여기 뭔가 있다"는 신호 없이
 - 빌드: `npm ci && npm run apk` → `android/app/build/outputs/apk/debug/app-debug.apk` (JDK 21, Android SDK 36 필요).
 - 릴리스: GitHub Actions(`android`)가 main 푸시마다 서명된 APK·AAB를 아티팩트로 올리고, `v*` 태그나 수동 실행(release 입력)이면 GitHub 릴리스로 낸다.
 - 서명 키: 다른 앱과 같은 업로드 키. `genshin-checkin` 저장소의 `copy-secrets` 워크플로를 대상 `lesumein/chess-replay`로 수동 실행하면 시크릿 4개(`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`)가 들어온다.
-- 앱 아이콘·시작 화면: `node scripts/make-icons.cjs` (`icons/icon.svg`에서 만든다).
+- 앱 아이콘·시작 화면: `node scripts/make-icons.cjs` (`icons/icon.svg`에서 만든다). 아이콘은 먹색 바탕에 판 한 귀퉁이(놓친 칸 하나를 벽돌색으로)와 그 둘레의 되감기 화살표. 화면 톤(기보 용지)에 맞춰 2026-10-26에 다시 그렸다.
 - 플레이 스토어에 올리려면: 개발자 계정, 위 AAB, 개인정보처리방침 페이지(수집 없음이라도 필요).
 - 백그라운드 분석은 에뮬레이터 없이 만들어서 아직 실제 폰에서 확인하지 못했다.
 

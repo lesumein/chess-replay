@@ -2,7 +2,7 @@
 // - 화면·코드(html, js, css, manifest): 인터넷이 되면 늘 새로 받고, 안 되면 담아 둔 것
 // - 큰 파일(Stockfish, 판·기물, 아이콘): 담아 둔 것을 먼저 쓰고 뒤에서 새로 받아 둔다
 // Chess.com API는 담지 않는다.
-const CACHE = 'chess-replay-v2';
+const CACHE = 'chess-replay-v3';
 const SHELL = [
   './',
   'index.html',
