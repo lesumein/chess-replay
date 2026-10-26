@@ -53,7 +53,8 @@ export async function analyzeGame(engine, g, user, onScene = () => {}) {
     return [];
   }
   addTimeSpent(moves, headers.TimeControl);
-  const side = g.white.username.toLowerCase() === user.toLowerCase() ? 0 : 1;
+  // 남의 게임은 고른 쪽(g.side), 내 게임은 내 쪽
+  const side = g.side ?? (g.white.username.toLowerCase() === user.toLowerCase() ? 0 : 1);
   const [me, opp] = side ? [g.black, g.white] : [g.white, g.black];
   const positions = await replay(engine, moves);
   const { evals } = await evaluateAll(engine, positions, SCAN_DEPTH);
@@ -96,7 +97,8 @@ export async function analyzeMore(engine, user, { onGame, onGameDone, onScene, s
 }
 
 // ---- 공유로 받은 게임 ----
-// Chess.com 앱의 '공유하기'는 게임 링크나 PGN을 보낸다. 내가 둔, 끝난 게임만 받는다.
+// Chess.com 앱의 '공유하기'는 게임 링크나 PGN을 보낸다. 끝난 일반 체스 게임이면 남의 게임도 받는다.
+// 링크는 내 아카이브에서만 찾을 수 있다(공개 API에는 게임 번호로 찾는 길이 없다).
 export function parseShared(text = '') {
   if (/\[White "/.test(text) && /\[Black "/.test(text)) return { pgn: text };
   const m = /chess\.com\/\S*?(\d{6,})/i.exec(text);
@@ -111,8 +113,10 @@ export async function findSharedGame(user, text) {
   const g = shared.pgn ? gameFromPgn(user, shared.pgn) : await findById(user, shared.id);
   const existing = await store.get('games', g.url);
   if (existing) return existing;
-  await store.put('games', g);
-  return g;
+  // 남의 게임은 쪽을 고르기 전까지 뒤의 분석이 집어 가지 않게
+  const rec = isMine(g, user) ? g : { ...g, status: 'shared' };
+  await store.put('games', rec);
+  return rec;
 }
 
 async function findById(user, id) {
@@ -128,7 +132,7 @@ async function findById(user, id) {
       return toRecord(found);
     }
   }
-  throw new Error(`최근 ${SEARCH_MONTHS}달 내 게임에서 찾지 못했어요. 내가 둔 게임만 복기할 수 있어요.`);
+  throw new Error(`최근 ${SEARCH_MONTHS}달 내 게임에서 찾지 못했어요. 다른 사람 게임은 Chess.com에서 'PGN'으로 공유해 주세요.`);
 }
 
 function timeClassOf(tc = '') {
@@ -142,8 +146,6 @@ function gameFromPgn(user, pgn) {
   const { headers: h } = parsePgn(pgn);
   if (h.Variant && h.Variant !== 'Standard') throw new Error('일반 체스 게임만 복기할 수 있어요.');
   if (!h.Result || h.Result === '*') throw new Error('끝난 게임만 복기할 수 있어요.');
-  const me = user.toLowerCase();
-  if (![h.White, h.Black].some((n) => n?.toLowerCase() === me)) throw new Error('내가 둔 게임만 복기할 수 있어요.');
   const result = (white) => (h.Result === '1/2-1/2' ? 'agreed' : (h.Result === '1-0') === white ? 'win' : 'lose');
   const date = (h.EndDate || h.UTCDate || h.Date || '').replace(/\./g, '-');
   const time = h.EndTime || h.UTCTime || '00:00:00';
@@ -158,3 +160,6 @@ function gameFromPgn(user, pgn) {
     status: 'new',
   };
 }
+
+// 내가 둔 게임인지(아니면 어느 쪽으로 둘지 골라야 한다)
+export const isMine = (g, user) => [g.white.username, g.black.username].some((n) => n?.toLowerCase() === user.toLowerCase());

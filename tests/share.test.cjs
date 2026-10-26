@@ -45,13 +45,28 @@ const GAME = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/games-202
     console.log('PGN → 두기 시작');
     await page.close();
 
-    // 3) 남의 게임: 안내만
+    // 3) 남의 게임 PGN: 어느 쪽으로 둘지 고르면 그쪽 시점으로
     page = await fresh();
     await page.goto(base);
     await page.evaluate(() => localStorage.setItem('user', 'someone_else'));
     await page.goto(`${base}&text=${encodeURIComponent(GAME.pgn)}`);
-    await page.waitForFunction(() => document.querySelector('#shareNote').textContent.includes('내가 둔 게임만'));
-    console.log('남의 게임 →', await page.textContent('#shareNote'));
+    await page.waitForSelector('#shareNote [data-side="0"]');
+    console.log('남의 게임 →', (await page.innerText('#shareNote')).replace(/\s+/g, ' '));
+    await page.click('#shareNote [data-side="0"]');
+    await page.waitForSelector('#play:not([hidden])', { timeout: 120_000 });
+    const a1 = await page.locator('#board rect[data-square="a1"]').boundingBox();
+    const h8 = await page.locator('#board rect[data-square="h8"]').boundingBox();
+    assert.ok(a1.y > h8.y, '백으로 골랐는데 백이 아래가 아님');
+    console.log('백 쪽으로 두기 시작');
+    await page.close();
+
+    // 4) 남의 게임 링크: 찾을 수 없으니 PGN으로 공유하라는 안내
+    page = await fresh();
+    await page.goto(base);
+    await page.evaluate(() => localStorage.setItem('user', 'someone_else'));
+    await page.goto(`${base}&text=${encodeURIComponent('https://www.chess.com/game/live/123456789')}`);
+    await page.waitForFunction(() => document.querySelector('#shareNote').textContent.includes('PGN'));
+    console.log('남의 링크 →', await page.textContent('#shareNote'));
     await page.close();
 
     assert.deepStrictEqual(errors, []);

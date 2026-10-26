@@ -1,7 +1,7 @@
 import { Engine } from './engine.js';
 import { Board } from './board.js';
 import { playScene } from './play.js';
-import { analyzeMore, analyzeGame, findSharedGame } from './library.js';
+import { analyzeMore, analyzeGame, findSharedGame, isMine } from './library.js';
 import { material } from './material.js';
 import * as store from './store.js';
 
@@ -398,6 +398,26 @@ function stopBackground() {
 // ---- 공유로 받은 게임 복기 ----
 let pendingShare = null; // 아이디를 넣기 전에 공유받으면 넣은 뒤에 연다
 
+// 남의 게임: 어느 쪽으로 둘지 고른다. 돌려주는 값: 0(백) | 1(흑) | null(취소)
+function chooseSide(g) {
+  return new Promise((resolve) => {
+    const name = (p) => `${esc(p.username)}${p.rating ? ` ${p.rating}` : ''}`;
+    $('shareNote').hidden = false;
+    $('shareNote').innerHTML = `<div>다른 사람 게임이에요. 어느 쪽으로 둘까요?</div>
+      <div class="side-pick">
+        <button class="btn" type="button" data-side="0">백 · ${name(g.white)}</button>
+        <button class="btn" type="button" data-side="1">흑 · ${name(g.black)}</button>
+      </div>
+      <button class="btn quiet" type="button" data-side="">취소</button>`;
+    $('shareNote').onclick = (e) => {
+      const b = e.target.closest('[data-side]');
+      if (!b) return;
+      $('shareNote').onclick = null;
+      resolve(b.dataset.side === '' ? null : Number(b.dataset.side));
+    };
+  });
+}
+
 // 공유 안내는 분석 진행 문구와 따로 둔다(덮이지 않게)
 function shareNote(text) {
   $('shareNote').textContent = text;
@@ -415,7 +435,13 @@ async function openShared(text) {
   await goHome();
   shareNote('공유한 게임을 찾는 중…');
   try {
-    const g = await findSharedGame(user, text);
+    let g = await findSharedGame(user, text);
+    if (!isMine(g, user) && g.side == null) {
+      const side = await chooseSide(g);
+      if (side == null) return shareNote('');
+      g = { ...g, side, status: 'shared' };
+      await store.put('games', g);
+    }
     if (g.status !== 'done') {
       shareNote('공유한 게임을 분석하는 중…');
       playEngine ??= new Engine(ENGINE_URL);
