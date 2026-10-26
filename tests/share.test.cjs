@@ -14,10 +14,17 @@ const GAME = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/games-202
   const base = `http://localhost:${server.address().port}/index.html?nosw&fast`;
   const errors = [];
 
+  // Lichess 공개 API 대신: 같은 기보를 Lichess 형식(Site, Link 없음)으로
+  const LICHESS_PGN = GAME.pgn.replace(/\[Link "[^"]*"\]\n/, '').replace('[Site "Chess.com"]', '[Site "https://lichess.org/AbCd1234"]');
+
   async function fresh() {
     const page = await (await browser.newContext({ ...devices['Pixel 7'] })).newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     await fakeChessCom(page);
+    await page.route('https://lichess.org/game/export/**', (route) => {
+      const ok = route.request().url().includes('/AbCd1234');
+      route.fulfill({ status: ok ? 200 : 404, contentType: 'application/x-chess-pgn', headers: { 'access-control-allow-origin': '*' }, body: ok ? LICHESS_PGN : '' });
+    });
     return page;
   }
 
@@ -50,8 +57,10 @@ const GAME = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/games-202
     await page.goto(base);
     await page.evaluate(() => localStorage.setItem('user', 'someone_else'));
     await page.goto(`${base}&text=${encodeURIComponent(GAME.pgn)}`);
-    await page.waitForSelector('#shareNote [data-side="0"]');
-    console.log('남의 게임 →', (await page.innerText('#shareNote')).replace(/\s+/g, ' '));
+    await page.waitForSelector('#shareNote [data-side="0"]', { timeout: 60_000 });
+    const pick = (await page.innerText('#shareNote')).replace(/\s+/g, ' ');
+    console.log('남의 게임 →', pick);
+    assert.match(pick, /백 · opponent 677 장면 \d+개 흑 · lesum_ein 608 장면 \d+개/);
     await page.click('#shareNote [data-side="0"]');
     await page.waitForSelector('#play:not([hidden])', { timeout: 120_000 });
     const a1 = await page.locator('#board rect[data-square="a1"]').boundingBox();
@@ -67,6 +76,28 @@ const GAME = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/games-202
     await page.goto(`${base}&text=${encodeURIComponent('https://www.chess.com/game/live/123456789')}`);
     await page.waitForFunction(() => document.querySelector('#shareNote').textContent.includes('PGN'));
     console.log('남의 링크 →', await page.textContent('#shareNote'));
+    await page.close();
+
+    // 5) Lichess 링크(남의 게임, /black로 공유) → 쪽 고르기에서 '내 다른 아이디' 표시 → 다음부터 바로
+    page = await fresh();
+    await page.goto(base);
+    await page.evaluate(() => localStorage.setItem('user', 'someone_else'));
+    await page.goto(`${base}&text=${encodeURIComponent('https://lichess.org/AbCd1234/black')}`);
+    await page.waitForSelector('#shareNote [data-side="1"]', { timeout: 60_000 });
+    assert.ok(await page.$('#shareNote [data-side="0"].quiet-alt'), '링크가 흑이면 흑을 앞세운다');
+    await page.check('#mineCheck');
+    await page.click('#shareNote [data-side="1"]');
+    await page.waitForSelector('#play:not([hidden])', { timeout: 120_000 });
+    assert.deepStrictEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('aliases'))), ['lesum_ein']);
+    console.log('Lichess 링크 → 흑으로 두기, 내 다른 아이디 저장');
+    await page.click('#quitBtn');
+    // 같은 이름이 든 기보(PGN)는 이제 묻지 않고 바로
+    await page.goto(`${base}&text=${encodeURIComponent(GAME.pgn.replace('[Event "Live Chess"]', '[Event "Again"]').replace(/\[Link "[^"]*"\]/, '[Link "https://www.chess.com/game/live/1"]'))}`);
+    await page.waitForSelector('#play:not([hidden])', { timeout: 120_000 });
+    console.log('내 다른 아이디 → 바로 두기');
+    // 없는 Lichess 게임
+    await page.goto(`${base}&text=${encodeURIComponent('https://lichess.org/zzzzzzzz')}`);
+    await page.waitForFunction(() => document.querySelector('#shareNote').textContent.includes('Lichess에서 그 게임을 찾지 못했어요'));
     await page.close();
 
     assert.deepStrictEqual(errors, []);

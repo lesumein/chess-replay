@@ -1,7 +1,7 @@
 import { Engine } from './engine.js';
 import { Board } from './board.js';
 import { playScene } from './play.js';
-import { analyzeMore, analyzeGame, findSharedGame, isMine } from './library.js';
+import { analyzeMore, analyzeGame, findSharedGame, isMine, sideCounts } from './library.js';
 import { material } from './material.js';
 import * as store from './store.js';
 
@@ -378,6 +378,7 @@ function updateHistoryButtons() {
 // ---- 설정 ----
 async function openSettings() {
   $('userEdit').value = user;
+  $('aliasEdit').value = aliases().join(', ');
   $('installBox').hidden = !installPrompt;
   const est = await navigator.storage?.estimate?.().catch(() => null);
   const persisted = await navigator.storage?.persisted?.().catch(() => false);
@@ -398,22 +399,36 @@ function stopBackground() {
 // ---- 공유로 받은 게임 복기 ----
 let pendingShare = null; // 아이디를 넣기 전에 공유받으면 넣은 뒤에 연다
 
-// 남의 게임: 어느 쪽으로 둘지 고른다. 돌려주는 값: 0(백) | 1(흑) | null(취소)
-function chooseSide(g) {
+// 내 다른 아이디(부계정, Lichess 등). 이 이름이 있는 기보는 쪽을 고르지 않고 바로 내 쪽으로
+function aliases() {
+  try { return JSON.parse(localStorage.getItem('aliases') || '[]'); } catch { return []; }
+}
+function saveAliases(list) {
+  const clean = [...new Set(list.map((n) => n.trim()).filter(Boolean))];
+  try { localStorage.setItem('aliases', JSON.stringify(clean)); } catch {}
+  return clean;
+}
+const myNames = () => [user, ...aliases()];
+
+// 남의 게임: 어느 쪽으로 둘지 고른다. counts: 쪽마다 장면 후보 수, hint: 링크가 가리킨 쪽(0|1|null)
+// 돌려주는 값: { side: 0 | 1, mine: 이 이름이 내 아이디인지 } | null(취소)
+function chooseSide(g, counts, hint) {
   return new Promise((resolve) => {
-    const name = (p) => `${esc(p.username)}${p.rating ? ` ${p.rating}` : ''}`;
+    const label = (p, k) => `${k ? '흑' : '백'} · ${esc(p.username)}${p.rating ? ` ${p.rating}` : ''}`
+      + (counts ? `<small>장면 ${counts[k]}개</small>` : '');
     $('shareNote').hidden = false;
     $('shareNote').innerHTML = `<div>다른 사람 게임이에요. 어느 쪽으로 둘까요?</div>
       <div class="side-pick">
-        <button class="btn" type="button" data-side="0">백 · ${name(g.white)}</button>
-        <button class="btn" type="button" data-side="1">흑 · ${name(g.black)}</button>
+        <button class="btn${hint === 1 ? ' quiet-alt' : ''}" type="button" data-side="0">${label(g.white, 0)}</button>
+        <button class="btn${hint === 0 ? ' quiet-alt' : ''}" type="button" data-side="1">${label(g.black, 1)}</button>
       </div>
+      <label class="mine-check"><input type="checkbox" id="mineCheck"> 고른 쪽 이름이 내 다른 아이디예요(다음부터 바로)</label>
       <button class="btn quiet" type="button" data-side="">취소</button>`;
     $('shareNote').onclick = (e) => {
       const b = e.target.closest('[data-side]');
       if (!b) return;
       $('shareNote').onclick = null;
-      resolve(b.dataset.side === '' ? null : Number(b.dataset.side));
+      resolve(b.dataset.side === '' ? null : { side: Number(b.dataset.side), mine: $('mineCheck').checked });
     };
   });
 }
@@ -435,18 +450,21 @@ async function openShared(text) {
   await goHome();
   shareNote('공유한 게임을 찾는 중…');
   try {
-    let g = await findSharedGame(user, text);
-    if (!isMine(g, user) && g.side == null) {
-      const side = await chooseSide(g);
-      if (side == null) return shareNote('');
-      g = { ...g, side, status: 'shared' };
+    let { orient, ...g } = await findSharedGame(user, text, myNames());
+    playEngine ??= new Engine(ENGINE_URL);
+    await playEngine.init();
+    if (!isMine(g, myNames()) && g.side == null) {
+      shareNote('양쪽을 살펴보는 중…');
+      const counts = await sideCounts(playEngine, g);
+      const pick = await chooseSide(g, counts, orient === 'white' ? 0 : orient === 'black' ? 1 : null);
+      if (!pick) return shareNote('');
+      if (pick.mine) saveAliases([...aliases(), (pick.side ? g.black : g.white).username]);
+      g = { ...g, side: pick.side, status: 'shared' };
       await store.put('games', g);
     }
     if (g.status !== 'done') {
       shareNote('공유한 게임을 분석하는 중…');
-      playEngine ??= new Engine(ENGINE_URL);
-      await playEngine.init();
-      await analyzeGame(playEngine, g, user);
+      await analyzeGame(playEngine, g, myNames());
     }
     const scenes = (await store.getAll('scenes')).filter((s) => s.gameUrl === g.url && !s.fake);
     if (!scenes.length) {
@@ -496,6 +514,12 @@ $('userForm').addEventListener('submit', async (e) => {
   if (!name) return;
   $('settings').close();
   await switchUser(name);
+});
+$('aliasForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  $('aliasEdit').value = saveAliases($('aliasEdit').value.split(/[,\s]+/)).join(', ');
+  $('aliasSaved').hidden = false;
+  setTimeout(() => { $('aliasSaved').hidden = true; }, 1500);
 });
 $('resetBtn').addEventListener('click', async () => {
   if (!confirm('이 폰에 쌓인 장면과 기록을 모두 지울까요?')) return;

@@ -85,7 +85,11 @@
   .closed { color: var(--accent); font-weight: 600; margin-top: -6px; }
   .share { padding: 8px 10px; border-radius: 10px; background: var(--accent-soft); color: var(--fg); }
   .side-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 2px; }
-  .side-pick .btn { min-height: 44px; padding: 0 10px; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .side-pick .btn { min-height: 52px; padding: 4px 10px; font-size: .9rem; flex-direction: column; gap: 0; line-height: 1.2; overflow: hidden; }
+  .side-pick .btn small { font-weight: 500; opacity: .85; font-size: .78rem; }
+  .side-pick .btn.quiet-alt { background: var(--card); color: var(--fg); border: 1px solid var(--line); }
+  .mine-check { display: flex; gap: 8px; align-items: center; font-size: .82rem; color: var(--muted); margin: 6px 0 0; }
+  .mine-check input { width: auto; min-height: 0; }
   .working { display: flex; align-items: center; gap: 8px; min-height: 20px; }
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
   .stats div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 6px; text-align: center; }
@@ -298,6 +302,14 @@
       <span class="small muted">아이디를 바꾸면 이 폰에 쌓인 장면과 기록이 지워져요.</span>
     </section>
     <section>
+      <span class="small muted">내 다른 아이디 (부계정·Lichess, 쉼표로 구분)</span>
+      <form class="row" id="aliasForm">
+        <input id="aliasEdit" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="예: my_alt, my_lichess">
+        <button class="btn" type="submit">저장</button>
+      </form>
+      <span class="small muted">공유받은 기보에 이 이름이 있으면 그쪽으로 바로 둬요. <span id="aliasSaved" hidden>저장했어요.</span></span>
+    </section>
+    <section>
       <span class="small muted" id="storageInfo"></span>
       <button class="btn quiet danger" id="resetBtn" type="button" style="justify-self:start;padding:0">이 폰의 기록 모두 지우기</button>
     </section>
@@ -305,7 +317,7 @@
       <div>분석·상대: Stockfish (GPL v3), 소스: <a href="https://github.com/official-stockfish/Stockfish">github.com/official-stockfish/Stockfish</a> · <a href="stockfish/COPYING">라이선스 전문</a></div>
       <div>판: <a href="https://github.com/shaack/cm-chessboard">cm-chessboard</a> (MIT)</div>
       <div>기물: <a href="https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces/Standard">Wikimedia Commons</a>, Cburnett·Rfc1394 (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA 3.0</a>)</div>
-      <div>게임: Chess.com 공개 API · 앱 소스: <a href="https://github.com/lesumein/chess-replay">github.com/lesumein/chess-replay</a> (Apache 2.0) · <a href="bench.html">분석 속도 재기</a></div>
+      <div>게임: Chess.com 공개 API, Lichess 공개 API · 앱 소스: <a href="https://github.com/lesumein/chess-replay">github.com/lesumein/chess-replay</a> (Apache 2.0) · <a href="bench.html">분석 속도 재기</a></div>
     </section>
   </div>
 </dialog>
