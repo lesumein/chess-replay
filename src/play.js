@@ -125,8 +125,9 @@ async function preroll(scene, engine, ui, ms, signal) {
 }
 
 // 끝난 뒤 이번 판을 훑어본다.
-// compare: 같은 수만큼 둔 시점의 형세(내 쪽에서 본 점수) — 원래 게임 vs 이번
+// compare: 같은 구간에서 내 수가 잃은 점수의 합 — 원래 게임 vs 이번
 // issue: 장면 말고, 이번에 둔 길에서 놓친 기회나 큰 실수 중 첫 번째
+const MAX_LOSS = 1000;
 async function checkGame(scene, engine, history, played, atScene) {
   const side = scene.side;
   const mine = (ply, score) => (ply % 2 === side ? cp(score) : -cp(score));
@@ -139,14 +140,25 @@ async function checkGame(scene, engine, history, played, atScene) {
       : { score: { type: history[k].check ? 'mate' : 'cp', value: 0 }, legal });
   }
   const n = played.length;
-  const nowCp = mine(scene.startPly + n, evals[n].score);
-  // 원래 게임에서 같은 수만큼 둔 포지션
+  // 원래 게임에서 같은 수만큼(원래가 먼저 끝났으면 거기까지) 둔 포지션들의 평가
+  const m = Math.min(n, scene.line.length);
+  const origEvals = [evals[0]];
   let origFen = scene.startFen;
-  const orig = scene.line.slice(0, n);
-  for (const uci of orig) ({ fen: origFen } = await engine.play(origFen, uci));
-  const origLegal = await engine.legalMoves(origFen);
-  const origEval = origLegal.length ? await engine.evaluate(origFen, CHECK_DEPTH) : { score: { type: 'cp', value: 0 } };
-  const origCp = mine(scene.startPly + orig.length, origEval.score);
+  for (let k = 0; k < m; k++) {
+    const r = await engine.play(origFen, scene.line[k]);
+    origFen = r.fen;
+    const legal = await engine.legalMoves(origFen);
+    origEvals.push(legal.length ? await engine.evaluate(origFen, CHECK_DEPTH) : { score: { type: r.check ? 'mate' : 'cp', value: 0 } });
+  }
+  // 내 수마다 최선 대비 잃은 점수(한 수 최대 10폰)를 더한다. 상대(봇) 수는 빼고 내 판단만.
+  const lossSum = (ev, count) => {
+    let sum = 0;
+    for (let k = 0; k < count; k++) {
+      if ((scene.startPly + k) % 2 !== side) continue;
+      sum += Math.min(MAX_LOSS, Math.max(0, cp(ev[k].score) + cp(ev[k + 1].score)));
+    }
+    return sum;
+  };
 
   let issue = null;
   for (let k = 0; k < n && !issue; k++) {
@@ -160,7 +172,7 @@ async function checkGame(scene, engine, history, played, atScene) {
       issue = { moveNo: Math.floor(ply / 2) + 1, bestSan: await sanOf(engine, history[k].fen, evals[k].legal, best), kind: before >= 200 ? 'missed' : 'blunder' };
     }
   }
-  return { compare: { orig: origCp, now: nowCp }, issue };
+  return { compare: { loss: true, orig: lossSum(origEvals, m), now: lossSum(evals, m) }, issue };
 }
 
 function waitForMove(ui, fen, legal, last, clockMs, onTick, signal) {

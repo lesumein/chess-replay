@@ -93,7 +93,8 @@ async function anyMove(page) {
     // 원래 게임과 비교(테스트는 장면 뒤로 아무 수나 두므로 판정 글자만 확인)
     const compare = await page.innerText('#compare');
     console.log('비교:', compare.replace(/\s+/g, ' '));
-    assert.match(compare, /^원래 [+−]?\d+\.\d → 이번 [+−]?\d+\.\d\s+원래(보다 잘 뒀어요|보다 나빠졌어요|와 비슷해요)$/);
+    // 원래 14...Qd7로 잃은 만큼 이번이 낫다(뒤의 아무 수가 일부를 잃어도 플러스)
+    assert.match(compare, /^원래 대비 \+\d+\.\d\s+원래보다 잘 뒀어요$/);
     // 장면 포지션으로 돌아가 좋은 수를 화살표로 보여 준다
     await page.waitForSelector('#board .arrow-success');
     assert.ok(await page.$('#board g[data-square="e5"][data-piece="bn"]'), '장면 포지션이 아님');

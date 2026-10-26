@@ -119,6 +119,13 @@ function ago(ms) {
 }
 
 const SAME = 100; // 원래 게임과 1폰 안 차이면 비슷한 것으로
+// 원래 대비 얼마나 나았나(폰×100). 예전 결과는 끝 형세 차이로 저장돼 있다
+const gain = (c) => (c.loss ? c.orig - c.now : c.now - c.orig);
+// 폰 단위 부호 숫자(메이트로 바꾸지 않는다)
+function signed(c) {
+  const v = Math.round(c / 10) / 10;
+  return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1);
+}
 
 function pawns(c) {
   if (c >= 1000) return '메이트';
@@ -155,7 +162,7 @@ async function renderHome() {
   const recentDays = (days ?? []).filter((d) => new Date(d).getTime() >= since).length;
   const analyzed = games.filter((g) => g.status === 'done').length;
   const compared = results.filter((r) => r.compare);
-  const better = compared.filter((r) => r.compare.now - r.compare.orig >= SAME).length;
+  const better = compared.filter((r) => gain(r.compare) >= SAME).length;
   const remaining = scenes.filter((s) => !played.has(s.id)).length;
 
   $('remaining').innerHTML = `${remaining}<small>장면 준비됨</small>`;
@@ -284,12 +291,12 @@ function showResult(scene, result) {
   $('resultTime').textContent = times.join(' · ');
   $('resultTime').hidden = !times.length;
 
-  // 원래 게임과 비교: 같은 수만큼 둔 시점의 형세
+  // 원래 게임과 비교: 같은 구간 내 수 손실의 합을 원래 대비로
   const c = result.compare;
   if (c) {
-    const d = c.now - c.orig;
+    const d = gain(c);
     const verdict = d >= SAME ? '원래보다 잘 뒀어요' : d <= -SAME ? '원래보다 나빠졌어요' : '원래와 비슷해요';
-    $('compare').innerHTML = `<span>원래 <b>${pawns(c.orig)}</b> → 이번 <b>${pawns(c.now)}</b></span><span class="${d >= SAME ? 'up' : d <= -SAME ? 'down' : ''}">${verdict}</span>`;
+    $('compare').innerHTML = `<span>원래 대비 <b>${signed(d)}</b></span><span class="${d >= SAME ? 'up' : d <= -SAME ? 'down' : ''}">${verdict}</span>`;
   }
   $('compare').hidden = !c;
 
