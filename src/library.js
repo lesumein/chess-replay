@@ -15,6 +15,10 @@ async function getJson(url) {
   return res.json();
 }
 
+// 끝난 일반 체스 게임만
+const playable = (g) => g.rules === 'chess' && g.pgn && !/\[Result "\*"\]/.test(g.pgn);
+const toRecord = (g) => ({ url: g.url, pgn: g.pgn, endTime: g.end_time, timeClass: g.time_class, white: g.white, black: g.black, status: 'new' });
+
 // 이번 달은 열 때마다, 지난 달은 분석할 게임이 모자랄 때 한 달씩만 가져온다.
 // 돌려주는 값: 더 가져올 달이 남았는지
 export async function refreshGames(user, want = 5) {
@@ -26,9 +30,7 @@ export async function refreshGames(user, want = 5) {
     const url = months[k];
     if (k > 0 && done.has(url)) continue;
     const { games } = await getJson(url);
-    const fresh = games
-      .filter((g) => g.rules === 'chess' && g.pgn && !/\[Result "\*"\]/.test(g.pgn))
-      .map((g) => ({ url: g.url, pgn: g.pgn, endTime: g.end_time, timeClass: g.time_class, white: g.white, black: g.black, status: 'new' }));
+    const fresh = games.filter(playable).map(toRecord);
     const existing = new Set((await store.getAll('games')).map((g) => g.url));
     const added = fresh.filter((g) => !existing.has(g.url));
     await store.putMany('games', added);
@@ -91,4 +93,68 @@ export async function analyzeMore(engine, user, { onGame, onGameDone, onScene, s
     await onGameDone?.(g);
   }
   return 'stopped';
+}
+
+// ---- 공유로 받은 게임 ----
+// Chess.com 앱의 '공유하기'는 게임 링크나 PGN을 보낸다. 내가 둔, 끝난 게임만 받는다.
+export function parseShared(text = '') {
+  if (/\[White "/.test(text) && /\[Black "/.test(text)) return { pgn: text };
+  const m = /chess\.com\/\S*?(\d{6,})/i.exec(text);
+  return m ? { id: m[1] } : null;
+}
+
+const SEARCH_MONTHS = 6; // 링크로 받은 게임을 최근 몇 달 안에서 찾는다
+
+export async function findSharedGame(user, text) {
+  const shared = parseShared(text);
+  if (!shared) throw new Error('Chess.com 게임 링크나 PGN이 아니에요.');
+  const g = shared.pgn ? gameFromPgn(user, shared.pgn) : await findById(user, shared.id);
+  const existing = await store.get('games', g.url);
+  if (existing) return existing;
+  await store.put('games', g);
+  return g;
+}
+
+async function findById(user, id) {
+  const sameId = (url = '') => url.endsWith('/' + id);
+  const known = (await store.getAll('games')).find((g) => sameId(g.url));
+  if (known) return known;
+  const { archives } = await getJson(`${API}/${encodeURIComponent(user)}/games/archives`);
+  for (const url of [...archives].reverse().slice(0, SEARCH_MONTHS)) {
+    const { games } = await getJson(url);
+    const found = games.find((g) => sameId(g.url));
+    if (found) {
+      if (!playable(found)) throw new Error('끝난 일반 체스 게임만 복기할 수 있어요.');
+      return toRecord(found);
+    }
+  }
+  throw new Error(`최근 ${SEARCH_MONTHS}달 내 게임에서 찾지 못했어요. 내가 둔 게임만 복기할 수 있어요.`);
+}
+
+function timeClassOf(tc = '') {
+  if (tc.includes('/')) return 'daily';
+  const [base, inc = 0] = tc.split('+').map(Number);
+  const t = base + 40 * inc;
+  return t < 180 ? 'bullet' : t < 600 ? 'blitz' : 'rapid';
+}
+
+function gameFromPgn(user, pgn) {
+  const { headers: h } = parsePgn(pgn);
+  if (h.Variant && h.Variant !== 'Standard') throw new Error('일반 체스 게임만 복기할 수 있어요.');
+  if (!h.Result || h.Result === '*') throw new Error('끝난 게임만 복기할 수 있어요.');
+  const me = user.toLowerCase();
+  if (![h.White, h.Black].some((n) => n?.toLowerCase() === me)) throw new Error('내가 둔 게임만 복기할 수 있어요.');
+  const result = (white) => (h.Result === '1/2-1/2' ? 'agreed' : (h.Result === '1-0') === white ? 'win' : 'lose');
+  const date = (h.EndDate || h.UTCDate || h.Date || '').replace(/\./g, '-');
+  const time = h.EndTime || h.UTCTime || '00:00:00';
+  const endTime = Math.floor((Date.parse(`${date}T${time}Z`) || Date.now()) / 1000);
+  return {
+    url: h.Link || `pgn:${h.White}-${h.Black}-${date}-${time}`,
+    pgn,
+    endTime,
+    timeClass: timeClassOf(h.TimeControl),
+    white: { username: h.White, rating: Number(h.WhiteElo) || undefined, result: result(true) },
+    black: { username: h.Black, rating: Number(h.BlackElo) || undefined, result: result(false) },
+    status: 'new',
+  };
 }

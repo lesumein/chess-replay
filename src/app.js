@@ -1,7 +1,7 @@
 import { Engine } from './engine.js';
 import { Board } from './board.js';
 import { playScene } from './play.js';
-import { analyzeMore } from './library.js';
+import { analyzeMore, analyzeGame, findSharedGame } from './library.js';
 import { material } from './material.js';
 import * as store from './store.js';
 
@@ -80,6 +80,10 @@ function onNewScene() {
 }
 
 // ---- 다음 장면 고르기 ----
+// 공유로 받은 게임이 있으면 그 게임의 장면부터(다 두면 원래 순서로)
+let focusGame = null;
+let replayScene = null; // 다음에 바로 둘 장면(한 번만)
+
 async function nextScene() {
   const [scenes, results] = await Promise.all([store.getAll('scenes'), store.getAll('results')]);
   if (params.has('scene')) {
@@ -88,6 +92,11 @@ async function nextScene() {
   }
   const lastResult = new Map();
   for (const r of results) lastResult.set(r.sceneId, r);
+  if (focusGame) {
+    const own = scenes.filter((s) => s.gameUrl === focusGame && !s.fake && !lastResult.has(s.id)).sort((a, b) => b.loss - a.loss);
+    if (own.length) return own[0];
+    focusGame = null;
+  }
   const fresh = scenes.filter((s) => !lastResult.has(s.id));
   const real = fresh.filter((s) => !s.fake).sort((a, b) => b.loss - a.loss);
   const fakes = fresh.filter((s) => s.fake);
@@ -211,7 +220,9 @@ function showMaterial(fen, meColor, oppColor) {
 async function startScene() {
   session?.abort();
   const mine = (session = new AbortController());
-  const scene = await nextScene();
+  const scene = replayScene ?? (await nextScene());
+  replayScene = null;
+  shareNote('');
   if (!scene) return goHome();
   show('play');
   $('result').hidden = true;
@@ -383,6 +394,51 @@ function stopBackground() {
   bgRunning = null;
 }
 
+// ---- 공유로 받은 게임 복기 ----
+let pendingShare = null; // 아이디를 넣기 전에 공유받으면 넣은 뒤에 연다
+
+// 공유 안내는 분석 진행 문구와 따로 둔다(덮이지 않게)
+function shareNote(text) {
+  $('shareNote').textContent = text;
+  $('shareNote').hidden = !text;
+}
+
+async function openShared(text) {
+  if (!text) return;
+  if (!user) {
+    pendingShare = text;
+    return show('setup');
+  }
+  session?.abort();
+  waitingForScene = false;
+  await goHome();
+  shareNote('공유한 게임을 찾는 중…');
+  try {
+    const g = await findSharedGame(user, text);
+    if (g.status !== 'done') {
+      shareNote('공유한 게임을 분석하는 중…');
+      playEngine ??= new Engine(ENGINE_URL);
+      await playEngine.init();
+      await analyzeGame(playEngine, g, user);
+    }
+    const scenes = (await store.getAll('scenes')).filter((s) => s.gameUrl === g.url && !s.fake);
+    if (!scenes.length) {
+      shareNote('이 게임엔 놓친 기회나 큰 실수가 없었어요. 잘 둔 판이에요.');
+      return;
+    }
+    shareNote('');
+    focusGame = g.url;
+    // 이미 다 둔 장면이면 가장 큰 것부터 다시
+    const results = new Set((await store.getAll('results')).map((r) => r.sceneId));
+    if (scenes.every((s) => results.has(s.id))) {
+      replayScene = scenes.sort((a, b) => b.loss - a.loss)[0];
+    }
+    await startScene();
+  } catch (err) {
+    shareNote(err.message);
+  }
+}
+
 async function switchUser(name) {
   if (name.toLowerCase() !== user.toLowerCase()) {
     session?.abort();
@@ -394,9 +450,14 @@ async function switchUser(name) {
   // 브라우저가 공간이 모자랄 때 기록을 지우지 않도록 요청
   navigator.storage?.persist?.().catch(() => {});
   await recordDay();
-  waitingForScene = true;
+  waitingForScene = !pendingShare;
   await goHome();
   runBackground().catch(() => {});
+  if (pendingShare) {
+    const text = pendingShare;
+    pendingShare = null;
+    openShared(text);
+  }
 }
 
 $('settingsBtn').addEventListener('click', openSettings);
@@ -455,7 +516,24 @@ if ('serviceWorker' in navigator && !params.has('nosw') && !NATIVE) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
+// 앱(안드로이드)은 AndroidShare로, 설치한 웹 앱은 주소의 text/url로 공유받은 글이 온다
+function takeShared() {
+  const fromApp = window.AndroidShare?.take?.();
+  if (fromApp) return fromApp;
+  const fromWeb = [params.get('text'), params.get('url')].filter(Boolean).join(' ');
+  if (fromWeb) history.replaceState(null, '', location.pathname);
+  return fromWeb || null;
+}
+window.addEventListener('shared', () => openShared(takeShared()));
+
 (async () => {
+  const shared = takeShared();
+  if (shared) {
+    if (user) await recordDay();
+    await openShared(shared);
+    if (user) runBackground().catch(() => {});
+    return;
+  }
   if (!user) return show('setup');
   await recordDay();
   const bg = await store.get('meta', 'background');
