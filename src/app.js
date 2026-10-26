@@ -182,6 +182,7 @@ async function renderHome() {
 }
 
 async function goHome() {
+  if (updateReady) return location.reload();
   session?.abort();
   board?.destroy();
   board = null;
@@ -512,8 +513,16 @@ $('quitBtn').addEventListener('click', goHome);
 $('histPrev').addEventListener('click', () => viewHistory((viewing ?? past.length - 1) - 1));
 $('histNext').addEventListener('click', () => viewHistory((viewing ?? past.length - 1) + 1));
 
+// 웹: 새 버전의 서비스 워커가 자리 잡으면, 두는 중이 아닐 때 한 번 새로 고친다
+let updateReady = false;
 if ('serviceWorker' in navigator && !params.has('nosw') && !NATIVE) {
+  const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return; // 처음 설치될 때는 이미 새 파일이다
+    if ($('play').hidden) location.reload();
+    else updateReady = true;
+  });
 }
 
 // 앱(안드로이드)은 AndroidShare로, 설치한 웹 앱은 주소의 text/url로 공유받은 글이 온다
