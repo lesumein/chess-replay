@@ -6,7 +6,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const svg = fs.readFileSync(path.join(ROOT, 'icons/icon.svg'), 'utf8');
-const BG = '#1b1a17';
+const BG = '#2f6b4f';
 const inner = svg.replace(/^[\s\S]*?<rect width="512" height="512"[^>]*\/>/, '').replace(/<\/svg>\s*$/, '');
 const RES = path.join(ROOT, 'android/app/src/main/res');
 const DENSITY = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
