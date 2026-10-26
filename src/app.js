@@ -554,7 +554,12 @@ function showReview(scene, review, end, cmp) {
       $('cmpMineScore').textContent = lost(upto(loss.mine, step));
       const k = Math.min(step, loss.orig.length);
       const d = upto(loss.orig, k) - upto(loss.mine, k);
-      $('cmpSum').innerHTML = `여기까지 원래 대비 <b class="gain ${gainClass(d)}">${signed(d)}</b> <small>판 위 숫자: 내 수가 잃은 점수의 합</small>`;
+      // 좋은 수 갈래도 같은 계산으로(갈래가 끝난 뒤로는 갈래 끝까지)
+      const kg = good && loss.good ? Math.min(step, good.length, loss.orig.length) : 0;
+      const dg = upto(loss.orig, kg) - upto(loss.good, kg);
+      $('cmpSum').innerHTML = `<span class="label">여기까지 원래 대비</span>
+        <span class="row"><span>이번 <b class="gain ${gainClass(d)}">${signed(d)}</b></span>${kg ? `<span>좋은 수 <b class="gain ${gainClass(dg)}">${signed(dg)}</b></span>` : ''}</span>
+        <small>판 위 숫자: 그 수까지 내 수가 잃은 점수의 합</small>`;
     } else {
       $('cmpOrigScore').textContent = o.cp != null ? pawns(o.cp) : '';
       $('cmpMineScore').textContent = m.cp != null ? pawns(m.cp) : '';

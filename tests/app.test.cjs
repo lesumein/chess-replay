@@ -152,6 +152,8 @@ async function anyMove(page) {
     const sum = await page.textContent('#cmpSum b');
     console.log('끝 합계:', sum, '결과:', headline, '·', await page.textContent('#cmpOrigScore'), await page.textContent('#cmpMineScore'));
     assert.strictEqual(sum, headline);
+    // 좋은 수 갈래도 원래 대비 숫자가 있다(장면에서 원래가 잃은 만큼 플러스)
+    assert.match(await page.innerText('#cmpSum'), /좋은 수 \+\d+\.\d/);
     await page.click('#tabs [data-view="cmp"]');
     // 좋은 수 갈래: 표에 세 번째 줄, 왼쪽 판을 좋은 수로 바꿔 볼 수 있다
     assert.match(await page.innerText('#cmpMoves thead'), /원래\s+이번\s+좋은 수/);

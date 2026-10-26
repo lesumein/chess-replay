@@ -90,9 +90,23 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal, clo
     // 좋은 수 갈래: 장면까지는 원래 흐름, 장면부터 좋은 수
     good: rev.lines.good ? await withScores(engine, scene, [...rev.prefix, ...rev.lines.good]) : null,
     // 내 수마다 잃은 점수(결과의 '원래 대비'와 같은 계산). 좋은 수 갈래는 장면까지 원래와 같고 그 뒤로는 0
-    loss: { ...check.losses, good: rev.lines.good ? check.losses.orig.slice(0, rev.prefix.length) : null },
+    loss: { ...check.losses, good: rev.lines.good ? goodLosses(scene, check.losses, rev.prefix.length, [...rev.prefix, ...rev.lines.good], played) : null },
   };
   return { ...result, compare: check.compare, review: rev, end, cmp };
+}
+
+// 좋은 수 갈래의 수마다 잃은 점수: 장면까지는 원래와 같고, 그 뒤 엔진 최선 수는 0.
+// 단 이번 판이 같은 길로 왔으면 이번 판과 같은 값을 쓴다(같은 수가 다르게 매겨지지 않게).
+function goodLosses(scene, losses, pre, steps, played) {
+  const out = [];
+  let same = true;
+  for (let k = 0; k < steps.length; k++) {
+    same &&= played[k] === steps[k].uci;
+    if ((scene.startPly + k) % 2 !== scene.side) out.push(null); // 상대 수
+    else if (same && k < losses.mine.length) out.push(losses.mine[k]);
+    else out.push(k < pre ? losses.orig[k] ?? 0 : 0);
+  }
+  return out;
 }
 
 const SCORE_DEPTH = 10;
@@ -145,9 +159,15 @@ async function checkGame(scene, engine, history, played, atScene) {
   // 원래 게임에서 같은 수만큼(원래가 먼저 끝났으면 거기까지) 둔 포지션들의 평가
   const m = Math.min(n, scene.line.length);
   const origEvals = [evals[0]];
-  let origFen = scene.startFen;
+  let origFen = null; // 갈라진 뒤 원래 길의 포지션(갈라지기 전엔 이번 판과 같다)
+  let same = true; // 이번 판이 아직 원래와 같은 길이면 같은 평가를 쓴다(같은 수가 다르게 매겨지지 않게)
   for (let k = 0; k < m; k++) {
-    const r = await engine.play(origFen, scene.line[k]);
+    same &&= played[k] === scene.line[k];
+    if (same) {
+      origEvals.push(evals[k + 1]);
+      continue;
+    }
+    const r = await engine.play(origFen === null ? history[k].fen : origFen, scene.line[k]);
     origFen = r.fen;
     const legal = await engine.legalMoves(origFen);
     origEvals.push(legal.length ? await engine.evaluate(origFen, CHECK_DEPTH) : { score: { type: r.check ? 'mate' : 'cp', value: 0 } });
