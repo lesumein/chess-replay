@@ -37,7 +37,7 @@ const { serve, fakeChessCom } = require('./helpers.cjs');
     await page.waitForSelector('#closedNote:not([hidden])');
     const note = await page.textContent('#closedNote');
     console.log('홈:', note);
-    assert.strictEqual(note, `앱을 닫아 둔 동안 ${made}개 만들어 뒀어요`);
+    assert.strictEqual(note, `앱을 닫아 둔 동안 장면 ${made}개를 만들어 뒀어요`);
 
     assert.deepStrictEqual(errors, []);
     console.log('ok');

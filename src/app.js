@@ -7,6 +7,7 @@ import * as store from './store.js';
 
 const ENGINE_URL = 'stockfish/stockfish-18-lite-single.js';
 const FAKE_EVERY = 4; // 장면 네 개에 하나꼴로 가짜
+const SET_SIZE = 5; // 장면 다섯 개가 한 세트
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -25,7 +26,7 @@ let installPrompt = null;
 let madeWhileClosed = 0; // 앱을 닫아 둔 동안 백그라운드 작업이 만든 장면 수
 
 function show(view) {
-  for (const v of ['setup', 'home', 'play']) $(v).hidden = v !== view;
+  for (const v of ['setup', 'home', 'play', 'setDone']) $(v).hidden = v !== view;
   window.scrollTo(0, 0);
 }
 
@@ -143,47 +144,98 @@ function gameLabel(scene) {
   return [when, (TIME_CLASS[scene.timeClass] ?? scene.timeClass) + tc, result].filter(Boolean).join(' · ');
 }
 
+const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const OUTCOME = {
-  found: { mark: '✅', title: (s) => (s.fake ? '잘 넘겼어요' : s.kind === 'blunder' ? '피했어요' : '찾았어요'), good: true },
-  missed: { mark: '💡', title: (s) => (s.fake ? '흔들렸어요' : s.kind === 'blunder' ? '걸렸어요' : '놓쳤어요'), good: false },
-  timeout: { mark: '⏱', title: () => '시간이 다 됐어요', good: false },
-  deviated: { mark: '↪', title: () => '다른 길로 갔어요', good: false },
+  found: { icon: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), tone: 'good', title: (s) => (s.fake ? '잘 넘겼어요' : s.kind === 'blunder' ? '피했어요' : '찾았어요'), good: true },
+  missed: { icon: svg('<path d="M7 7l10 10M17 7 7 17"/>'), tone: 'bad', title: (s) => (s.fake ? '흔들렸어요' : s.kind === 'blunder' ? '걸렸어요' : '놓쳤어요'), good: false },
+  timeout: { icon: svg('<circle cx="12" cy="13" r="7"/><path d="M12 10v3.5l2 1.5M10 3h4"/>'), tone: 'warn', title: () => '시간이 다 됐어요', good: false },
+  deviated: { icon: svg('<path d="M6 20V10a4 4 0 0 1 4-4h8M15 3l3 3-3 3"/>'), tone: 'warn', title: () => '다른 길로 갔어요', good: false },
 };
+const outcomeOf = (o) => OUTCOME[o] ?? OUTCOME.deviated;
+const sceneName = (s) => (s.fake ? '아무것도 없던 장면' : `${s.moveNo}수 ${s.kind === 'blunder' ? '큰 실수' : '놓친 기회'}`);
+const gainClass = (d) => (d >= SAME ? 'up' : d <= -SAME ? 'down' : 'same');
+
+// ---- 세트: 장면 다섯 개를 한 묶음으로 ----
+// meta 'set' = { at, items: [{ sceneId, outcome, fake, gain }] }. 다섯 개가 차면 끝난 세트
+async function currentSet() {
+  return (await store.get('meta', 'set')) ?? null;
+}
+const setDone = (set) => !set || set.items.length >= SET_SIZE;
+
+async function addToSet(scene, result) {
+  let set = await currentSet();
+  if (setDone(set)) set = { at: Date.now(), items: [] };
+  set.items.push({ sceneId: scene.id, outcome: result.outcome, fake: !!scene.fake, gain: result.compare ? gain(result.compare) : null });
+  await store.put('meta', set, 'set');
+  return set;
+}
+
+function dotsHtml(set, withNext) {
+  const items = setDone(set) ? [] : set.items;
+  return Array.from({ length: SET_SIZE }, (_, i) => {
+    const it = items[i];
+    const cls = it ? (outcomeOf(it.outcome).good ? 'good' : 'bad') : withNext && i === items.length ? 'now' : '';
+    return `<i class="${cls}"></i>`;
+  }).join('');
+}
+
+// 연속으로 둔 날 수(오늘 아직 안 뒀으면 어제부터 센다)
+const localDay = (t) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+function streakOf(results) {
+  const days = new Set(results.map((r) => localDay(r.at)));
+  const d = new Date();
+  if (!days.has(localDay(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (days.has(localDay(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+const FLAME = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3.5 5 5.8 5 10.5A5 5 0 0 1 12 18a5 5 0 0 1-5-5.5c0-2 1-3.5 2-4.5.2 1.6 1 2.6 2 3 0-3 .5-6 1-9z"/></svg>';
 
 async function renderHome() {
   if ($('home').hidden) return;
-  const [scenes, results, days, games] = await Promise.all([
-    store.getAll('scenes'), store.getAll('results'), store.get('meta', 'days'), store.getAll('games'),
+  const [scenes, results, games, set] = await Promise.all([
+    store.getAll('scenes'), store.getAll('results'), store.getAll('games'), currentSet(),
   ]);
   const played = new Set(results.map((r) => r.sceneId));
   const judged = results.filter((r) => !r.fake && (r.outcome === 'found' || r.outcome === 'missed' || r.outcome === 'timeout'));
   const found = judged.filter((r) => r.outcome === 'found').length;
-  const since = Date.now() - 14 * 86400e3;
-  const recentDays = (days ?? []).filter((d) => new Date(d).getTime() >= since).length;
   const analyzed = games.filter((g) => g.status === 'done').length;
   const compared = results.filter((r) => r.compare);
   const better = compared.filter((r) => gain(r.compare) >= SAME).length;
   const remaining = scenes.filter((s) => !played.has(s.id)).length;
+  const streak = streakOf(results);
+  const today = localDay(Date.now());
+  const setsToday = ((await store.get('meta', 'setLog')) ?? []).filter((x) => localDay(x.at) === today).length;
 
-  $('remaining').innerHTML = `${remaining}<small>장면 준비됨</small>`;
+  // 세트 카드: 진행 중이면 이어서, 아니면 새 세트
+  const going = !setDone(set) && set.items.length > 0;
+  $('setEyebrow').textContent = setsToday ? `오늘 ${setsToday}세트 완료` : '오늘의 세트';
+  $('setTitle').textContent = going ? `${set.items.length} / ${SET_SIZE} 진행 중` : setsToday ? '한 세트 더 해 볼까요?' : `${SET_SIZE}장면을 다시 둬요`;
+  $('setDots').innerHTML = dotsHtml(set, true);
+  $('streak').hidden = !streak;
+  $('streak').innerHTML = `${FLAME}${streak}일 연속`;
+  $('remaining').innerHTML = `준비된 장면 <b>${remaining}</b>`;
+  $('analyzed').innerHTML = analyzed ? `분석한 게임 <b>${analyzed}</b>` : '';
   $('closedNote').hidden = !madeWhileClosed;
-  $('closedNote').textContent = `앱을 닫아 둔 동안 ${madeWhileClosed}개 만들어 뒀어요`;
+  $('closedNote').textContent = `앱을 닫아 둔 동안 장면 ${madeWhileClosed}개를 만들어 뒀어요`;
   $('stats').innerHTML = `
     <div><b>${judged.length ? `${found}/${judged.length}` : '–'}</b><span>찾은 장면</span></div>
     <div><b>${compared.length ? `${better}/${compared.length}` : '–'}</b><span>원래보다 나은 판</span></div>
-    <div><b>${recentDays}</b><span>최근 2주 연 날</span></div>`;
+    <div><b>${streak}<small>일</small></b><span>연속</span></div>`;
   const next = await nextScene();
   $('playBtn').disabled = !next;
-  $('playBtn').textContent = next ? (remaining ? '두기' : '못 찾은 장면 다시 두기') : '장면을 만드는 중…';
-  $('analyzed').textContent = analyzed ? `분석한 게임 ${analyzed}판` : '';
+  $('playBtn').textContent = !next ? '장면을 만드는 중…' : going ? '이어서 두기' : remaining ? '세트 시작' : '못 찾은 장면 다시 두기';
 
+  // 최근 장면: 누르면 그 장면을 다시 둔다
   const byId = new Map(scenes.map((s) => [s.id, s]));
-  const recent = results.slice(-5).reverse().map((r) => {
+  const seen = new Set();
+  const recent = results.slice().reverse().filter((r) => byId.has(r.sceneId) && !seen.has(r.sceneId) && seen.add(r.sceneId)).slice(0, 6).map((r) => {
     const s = byId.get(r.sceneId);
-    if (!s) return '';
-    const o = OUTCOME[r.outcome] ?? OUTCOME.deviated;
-    const what = s.fake ? '아무것도 없던 장면' : `${s.moveNo}수 ${s.kind === 'blunder' ? '큰 실수' : '놓친 기회'}`;
-    return `<li><span class="mark">${o.mark}</span><span>${esc(what)} · ${esc(o.title(s))}</span><span class="when">${ago(r.at)}</span></li>`;
+    const o = outcomeOf(r.outcome);
+    const d = r.compare ? gain(r.compare) : null;
+    return `<li data-scene="${esc(s.id)}"><span class="badge sm ${o.tone}">${o.icon}</span>
+      <span class="txt"><b>${esc(sceneName(s))} · ${esc(o.title(s))}</b><small>${esc(s.opp.name)} · ${esc(gameLabel(s))}</small></span>
+      ${d != null ? `<span class="gain ${gainClass(d)}">${signed(d)}</span>` : ''}</li>`;
   }).join('');
   $('recent').innerHTML = recent;
   $('recentBox').hidden = !recent;
@@ -237,6 +289,10 @@ async function startScene() {
   if (!scene) return goHome();
   show('play');
   $('result').hidden = true;
+  $('review').hidden = true;
+  const cur = await currentSet();
+  const n = setDone(cur) ? 1 : cur.items.length + 1;
+  $('setProgress').innerHTML = `<span class="dots sm">${dotsHtml(cur, true)}</span>세트 ${n}/${SET_SIZE}`;
   const meColor = scene.side ? 'b' : 'w';
   const oppColor = scene.side ? 'w' : 'b';
   $('opp').innerHTML = `${esc(scene.opp.name)}${scene.opp.rating ? `<span class="rating">${scene.opp.rating}</span>` : ''}`;
@@ -276,13 +332,16 @@ async function startScene() {
   $('board').onclick = null;
   const { text, review, end, ...record } = result;
   await store.add('results', record);
-  showResult(scene, result);
+  const set = await addToSet(scene, result);
+  $('setProgress').innerHTML = `<span class="dots sm">${dotsHtml(set, false)}</span>세트 ${set.items.length}/${SET_SIZE}`;
+  if (set.items.length === SET_SIZE) await logSet(set);
+  showResult(scene, result, set);
 }
 
-function showResult(scene, result) {
-  const o = OUTCOME[result.outcome] ?? OUTCOME.deviated;
-  $('resultBadge').textContent = o.mark;
-  $('resultBadge').className = `badge ${o.good ? 'good' : 'bad'}`;
+function showResult(scene, result, set) {
+  const o = outcomeOf(result.outcome);
+  $('resultBadge').innerHTML = o.icon;
+  $('resultBadge').className = `badge ${o.tone}`;
   $('resultTitle').textContent = o.title(scene);
   $('resultText').textContent = result.text;
   const times = [];
@@ -293,18 +352,86 @@ function showResult(scene, result) {
 
   // 원래 게임과 비교: 같은 구간 내 수 손실의 합을 원래 대비로
   const c = result.compare;
+  const d = c ? gain(c) : null;
   if (c) {
-    const d = gain(c);
     const verdict = d >= SAME ? '원래보다 잘 뒀어요' : d <= -SAME ? '원래보다 나빠졌어요' : '원래와 비슷해요';
-    $('compare').innerHTML = `<span>원래 대비 <b>${signed(d)}</b></span><span class="${d >= SAME ? 'up' : d <= -SAME ? 'down' : ''}">${verdict}</span>`;
+    $('compare').innerHTML = `<span><span class="label">원래 대비</span><span class="gain ${gainClass(d)}">${signed(d)}</span></span><span class="verdict-text ${d >= SAME ? 'up' : d <= -SAME ? 'down' : ''}">${verdict}</span>`;
   }
   $('compare').hidden = !c;
+  $('reviewBadge').innerHTML = o.icon;
+  $('reviewBadge').className = `badge sm ${o.tone}`;
+  $('reviewTitle').textContent = `${sceneName(scene)} · ${o.title(scene)}`;
+  $('reviewGain').textContent = c ? `원래 대비 ${signed(d)}` : '';
+  $('reviewGain').className = `gain ${c ? gainClass(d) : ''}`;
 
+  const last = set.items.length === SET_SIZE;
+  for (const b of [$('nextBtn'), $('reviewNextBtn')]) b.textContent = last ? '세트 결과 보기' : '다음 장면';
   showReview(scene, result.review, result.end, result.cmp);
   $('resultLink').href = `${scene.gameUrl}?move=${scene.ply + 1}`;
+  $('play').classList.add('done');
   $('result').hidden = false;
-  // 넘겨 볼 때 판이 잘리지 않게 판 위쪽에 맞춘다(결과 글은 아래로 내려 보면 된다)
-  $('opp').closest('.player').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// 판정 시트를 내리고 복기 패널을 연다
+function openReview() {
+  $('result').hidden = true;
+  $('review').hidden = false;
+  $('play').classList.remove('done');
+  $('play').classList.add('reviewing');
+  $('review').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function afterResult() {
+  const set = await currentSet();
+  if (set?.items.length === SET_SIZE) return showSetDone(set);
+  startScene();
+}
+
+// ---- 세트 끝 ----
+async function logSet(set) {
+  const log = (await store.get('meta', 'setLog')) ?? [];
+  log.push({ at: Date.now(), items: set.items });
+  await store.put('meta', log, 'setLog');
+}
+
+async function showSetDone(set) {
+  session?.abort();
+  closeCompare();
+  board?.destroy();
+  board = null;
+  const [scenes, results] = await Promise.all([store.getAll('scenes'), store.getAll('results')]);
+  const byId = new Map(scenes.map((s) => [s.id, s]));
+  const real = set.items.filter((x) => !x.fake);
+  const found = real.filter((x) => x.outcome === 'found').length;
+  const gains = set.items.filter((x) => x.gain != null);
+  const total = gains.reduce((a, x) => a + x.gain, 0);
+  show('setDone');
+  $('doneCount').textContent = real.length ? `${found}/${real.length}` : `${set.items.filter((x) => x.outcome === 'found').length}/${set.items.length}`;
+  $('doneCountLabel').textContent = real.length ? '찾은 장면' : '잘 넘긴 장면';
+  const share = real.length ? found / real.length : 1;
+  const C = 2 * Math.PI * 52;
+  $('doneRing').style.strokeDasharray = `${C}`;
+  $('doneRing').style.strokeDashoffset = `${C}`;
+  requestAnimationFrame(() => requestAnimationFrame(() => { $('doneRing').style.strokeDashoffset = `${C * (1 - share)}`; }));
+  $('doneTitle').textContent = share >= 0.8 ? '날카로웠어요' : share >= 0.5 ? '좋은 세트였어요' : '다음엔 더 보일 거예요';
+  const fakes = set.items.length - real.length;
+  $('doneSub').textContent = fakes ? `${SET_SIZE}장면 중 ${fakes}개는 아무것도 없던 장면이었어요` : `${SET_SIZE}장면 모두 실제로 놓쳤던 순간이었어요`;
+  const streak = streakOf(results);
+  $('doneStats').innerHTML = `
+    <div><b class="gain ${gains.length ? gainClass(total) : ''}">${gains.length ? signed(total) : '–'}</b><span>원래 대비 합계</span></div>
+    <div><b>${gains.filter((x) => x.gain >= SAME).length}/${gains.length || '–'}</b><span>원래보다 나은 판</span></div>
+    <div><b>${streak}<small>일</small></b><span>연속</span></div>`;
+  $('doneList').innerHTML = set.items.map((x) => {
+    const s = byId.get(x.sceneId);
+    if (!s) return '';
+    const o = outcomeOf(x.outcome);
+    return `<li data-scene="${esc(s.id)}"><span class="badge sm ${o.tone}">${o.icon}</span>
+      <span class="txt"><b>${esc(sceneName(s))} · ${esc(o.title(s))}</b><small>${esc(s.opp.name)} · ${esc(gameLabel(s))}</small></span>
+      ${x.gain != null ? `<span class="gain ${gainClass(x.gain)}">${signed(x.gain)}</span>` : ''}</li>`;
+  }).join('');
+  const next = await nextScene();
+  $('againBtn').disabled = !next;
+  $('againBtn').textContent = next ? '한 세트 더' : '장면을 만드는 중…';
 }
 
 // 결과 아래에서 수순을 한 수씩 넘겨 본다.
@@ -339,7 +466,7 @@ document.addEventListener('keydown', (e) => {
 
 function closeCompare() {
   reviewGo = null;
-  $('play').classList.remove('reviewing');
+  $('play').classList.remove('reviewing', 'done');
   $('play').classList.remove('comparing');
   cmpBoards?.forEach((b) => b.destroy());
   cmpBoards = null;
@@ -459,7 +586,6 @@ function showReview(scene, review, end, cmp) {
   $('prevStep').onclick = () => go(-1);
   $('nextStep').onclick = () => go(1);
   reviewGo = go;
-  $('play').classList.add('reviewing');
   const jump = (e) => {
     const k = e.target.closest('[data-step]')?.dataset.step;
     if (k) { step = Number(k); draw(); }
@@ -696,8 +822,20 @@ $('setupForm').addEventListener('submit', async (e) => {
 });
 
 $('playBtn').addEventListener('click', startScene);
-$('nextBtn').addEventListener('click', startScene);
-$('homeBtn').addEventListener('click', goHome);
+$('nextBtn').addEventListener('click', afterResult);
+$('reviewNextBtn').addEventListener('click', afterResult);
+$('reviewBtn').addEventListener('click', openReview);
+$('againBtn').addEventListener('click', startScene);
+$('doneHomeBtn').addEventListener('click', goHome);
+// 지난 장면을 누르면 그 장면을 다시 둔다
+for (const id of ['recent', 'doneList']) {
+  $(id).addEventListener('click', async (e) => {
+    const li = e.target.closest('[data-scene]');
+    if (!li) return;
+    replayScene = await store.get('scenes', li.dataset.scene);
+    if (replayScene) startScene();
+  });
+}
 $('quitBtn').addEventListener('click', goHome);
 $('histPrev').addEventListener('click', () => viewHistory((viewing ?? past.length - 1) - 1));
 $('histNext').addEventListener('click', () => viewHistory((viewing ?? past.length - 1) + 1));

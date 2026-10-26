@@ -82,6 +82,13 @@ async function anyMove(page) {
     await page.waitForSelector('#board[data-active="true"]');
     for (const uci of lead.slice(1)) await move(page, uci);
     assert.ok(await page.$('#board g[data-square="f3"][data-piece="wn"]'), '원래 게임대로라면 f3에 백 나이트가 있어야 함');
+    // 세트의 앞 네 장면은 이미 둔 것으로 채워 둔다(이 장면으로 세트가 끝나게)
+    await page.evaluate(async () => {
+      const st = await import('./src/store.js');
+      const ids = (await st.getAll('scenes')).filter((x) => x.ply !== 27).map((x) => x.id);
+      const items = [0, 1, 2, 3].map((i) => ({ sceneId: ids[i] ?? `none#${i}`, outcome: i % 2 ? 'found' : 'missed', fake: false, gain: i * 80 - 100 }));
+      await st.put('meta', { at: Date.now(), items }, 'set');
+    });
     await move(page, 'e5f3');
     while (await anyMove(page));
 
@@ -93,13 +100,17 @@ async function anyMove(page) {
     // 원래 게임과 비교(테스트는 장면 뒤로 아무 수나 두므로 판정 글자만 확인)
     const compare = await page.innerText('#compare');
     console.log('비교:', compare.replace(/\s+/g, ' '));
-    // 원래 14...Qd7로 잃은 만큼 이번이 낫다(뒤의 아무 수가 일부를 잃어도 플러스)
-    assert.match(compare, /^원래 대비 \+\d+\.\d\s+원래보다 잘 뒀어요$/);
+    // 장면 뒤로는 아무 수나 두므로 판정 글자 모양만 본다
+    assert.match(compare, /^원래 대비\s+[+−]?\d+\.\d\s+원래(보다 잘 뒀어요|보다 나빠졌어요|와 비슷해요)$/);
     // 장면 포지션으로 돌아가 좋은 수를 화살표로 보여 준다
     await page.waitForSelector('#board .arrow-success');
     assert.ok(await page.$('#board g[data-square="e5"][data-piece="bn"]'), '장면 포지션이 아님');
     await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(SHOTS, 'app-result.png') });
+    // 판정 시트에서 복기를 열면 시트는 내려가고 수순과 ◀ ▶ 바가 나온다
+    await page.click('#reviewBtn');
+    await page.waitForSelector('#review:not([hidden])');
+    assert.ok(await page.isHidden('#result'));
     // 좋은 수 수순: 시작한 판부터 장면까지(원래 흐름), 그다음 Nxf3+와 이득까지. 장면 포지션에서 열린다
     const line = await page.innerText('#lineText');
     console.log('수순:', line.replace(/\s+/g, ' '));
@@ -152,14 +163,24 @@ async function anyMove(page) {
     const sizes = await page.$$eval('#board rect[data-square]', (els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
     assert.ok(Math.max(...sizes) - Math.min(...sizes) <= 1, `칸 높이가 다름: ${Math.min(...sizes)}~${Math.max(...sizes)}`);
 
-    await page.click('#homeBtn');
+    await page.screenshot({ path: path.join(SHOTS, 'app-review.png') });
+    // 다섯 번째 장면이었으니 세트 결과로
+    assert.strictEqual(await page.textContent('#reviewNextBtn'), '세트 결과 보기');
+    await page.click('#reviewNextBtn');
+    await page.waitForSelector('#setDone:not([hidden])');
+    console.log('세트:', (await page.innerText('#setDone')).replace(/\s+/g, ' '));
+    assert.match(await page.textContent('#doneSub'), /^5장면 모두 실제로 놓쳤던 순간이었어요$/);
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: path.join(SHOTS, 'app-setdone.png'), fullPage: true });
+    await page.click('#doneHomeBtn');
+    await page.waitForFunction(() => document.querySelector('#setEyebrow').textContent.includes('오늘 1세트 완료'));
     await page.waitForFunction(() => document.querySelector('#stats').textContent.includes('/'));
     const stats = (await page.textContent('#stats')).replace(/\s+/g, ' ');
     console.log('홈:', stats);
     assert.match(stats, /1\/1\s*찾은 장면/);
     assert.match(stats, /[01]\/1\s*원래보다 나은 판/);
     assert.match(await page.textContent('#recent'), /14수 놓친 기회 · 찾았어요/);
-    assert.match(stats, /1\s*최근 2주 연 날/);
+    assert.match(stats, /1\s*일\s*연속/);
     await page.screenshot({ path: path.join(SHOTS, 'app-home.png') });
 
     const scenes = await page.evaluate(async () => (await import('./src/store.js')).getAll('scenes'));
