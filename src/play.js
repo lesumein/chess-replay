@@ -84,13 +84,21 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal, clo
   if (result.outcome === 'deviated') result.text = describe(scene, 'deviated', '', check.issue);
   const rev = await review(scene, engine, atScene, result.outcome, badLine);
   // 비교 탭: 원래와 이번을 같은 수 번호로 나란히, 수마다 형세(내 쪽 점수)
+  const bestSteps = await bestLine(engine, scene.startFen, Math.max(rev.lines.orig?.length ?? 0, end.steps.length));
   const cmp = {
     orig: await withScores(engine, scene, rev.lines.orig ?? []),
     mine: await withScores(engine, scene, end.steps),
     // 좋은 수 갈래: 장면까지는 원래 흐름, 장면부터 좋은 수
     good: rev.lines.good ? await withScores(engine, scene, [...rev.prefix, ...rev.lines.good]) : null,
     // 내 수마다 잃은 점수(결과의 '원래 대비'와 같은 계산). 좋은 수 갈래는 장면까지 원래와 같고 그 뒤로는 0
-    loss: { ...check.losses, good: rev.lines.good ? goodLosses(scene, check.losses, rev.prefix.length, [...rev.prefix, ...rev.lines.good], played) : null },
+    // 최선 갈래: 시작한 판부터 양쪽 모두 엔진 최선으로(상대 수도 엔진이라 원래 게임과는 다른 판이 된다)
+    best: await withScores(engine, scene, bestSteps),
+    loss: {
+      ...check.losses,
+      good: rev.lines.good ? goodLosses(scene, check.losses, rev.prefix.length, [...rev.prefix, ...rev.lines.good], played) : null,
+      best: goodLosses(scene, check.losses, 0, bestSteps, played),
+    },
+    origBest: check.origBest,
   };
   return { ...result, compare: check.compare, review: rev, end, cmp };
 }
@@ -107,6 +115,20 @@ function goodLosses(scene, losses, pre, steps, played) {
     else out.push(k < pre ? losses.orig[k] ?? 0 : 0);
   }
   return out;
+}
+
+// 시작한 판부터 엔진 최선 수순(양쪽 모두)을 plies 반수만큼
+async function bestLine(engine, fen, plies) {
+  const steps = [];
+  while (steps.length < plies) {
+    const [top] = await engine.candidates(fen, CHECK_DEPTH, 1);
+    if (!top?.pv?.length) break;
+    const part = await walkLine(engine, fen, top.pv.slice(0, plies - steps.length));
+    if (!part.length) break;
+    steps.push(...part);
+    fen = part.at(-1).fen;
+  }
+  return steps;
 }
 
 const SCORE_DEPTH = 10;
@@ -144,6 +166,7 @@ async function preroll(scene, engine, ui, ms, signal) {
 // compare: 같은 구간에서 내 수가 잃은 점수의 합 — 원래 게임 vs 이번
 // issue: 장면 말고, 이번에 둔 길에서 놓친 기회나 큰 실수 중 첫 번째
 const MAX_LOSS = 1000;
+const BEST_NOTE = 50; // 이만큼(0.5폰) 이상 잃은 원래 수에는 최선 수를 적어 준다
 async function checkGame(scene, engine, history, played, atScene) {
   const side = scene.side;
   const mine = (ply, score) => (ply % 2 === side ? cp(score) : -cp(score));
@@ -159,15 +182,18 @@ async function checkGame(scene, engine, history, played, atScene) {
   // 원래 게임에서 같은 수만큼(원래가 먼저 끝났으면 거기까지) 둔 포지션들의 평가
   const m = Math.min(n, scene.line.length);
   const origEvals = [evals[0]];
-  let origFen = null; // 갈라진 뒤 원래 길의 포지션(갈라지기 전엔 이번 판과 같다)
+  const origPos = []; // 원래 게임에서 k번째 수를 두기 전 포지션
+  let origFen = history[0].fen;
   let same = true; // 이번 판이 아직 원래와 같은 길이면 같은 평가를 쓴다(같은 수가 다르게 매겨지지 않게)
   for (let k = 0; k < m; k++) {
+    origPos.push(origFen);
     same &&= played[k] === scene.line[k];
     if (same) {
       origEvals.push(evals[k + 1]);
+      origFen = history[k + 1].fen;
       continue;
     }
-    const r = await engine.play(origFen === null ? history[k].fen : origFen, scene.line[k]);
+    const r = await engine.play(origFen, scene.line[k]);
     origFen = r.fen;
     const legal = await engine.legalMoves(origFen);
     origEvals.push(legal.length ? await engine.evaluate(origFen, CHECK_DEPTH) : { score: { type: r.check ? 'mate' : 'cp', value: 0 } });
@@ -181,6 +207,14 @@ async function checkGame(scene, engine, history, played, atScene) {
   const sum = (list) => list.reduce((a, x) => a + (x ?? 0), 0);
   const origLoss = losses(origEvals, m);
   const mineLoss = losses(evals, n);
+  // 원래 게임에서 내 수가 0.5폰 이상 잃은 곳의 최선 수(분기 전에 무엇을 뒀어야 했나)
+  const origBest = [];
+  for (let k = 0; k < m; k++) {
+    const best = origEvals[k].best;
+    origBest.push(origLoss[k] >= BEST_NOTE && best && best !== scene.line[k]
+      ? await sanOf(engine, origPos[k], await engine.legalMoves(origPos[k]), best)
+      : null);
+  }
 
   let issue = null;
   for (let k = 0; k < n && !issue; k++) {
@@ -194,7 +228,7 @@ async function checkGame(scene, engine, history, played, atScene) {
       issue = { moveNo: Math.floor(ply / 2) + 1, bestSan: await sanOf(engine, history[k].fen, evals[k].legal, best), kind: before >= 200 ? 'missed' : 'blunder' };
     }
   }
-  return { compare: { loss: true, orig: sum(origLoss), now: sum(mineLoss.slice(0, m)) }, losses: { orig: origLoss, mine: mineLoss }, issue };
+  return { compare: { loss: true, orig: sum(origLoss), now: sum(mineLoss.slice(0, m)) }, losses: { orig: origLoss, mine: mineLoss }, origBest, issue };
 }
 
 function waitForMove(ui, fen, legal, last, clockMs, onTick, signal) {

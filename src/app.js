@@ -501,8 +501,10 @@ function showReview(scene, review, end, cmp) {
   let split = mine.findIndex((m, k) => orig[k]?.uci !== m.uci);
   if (split < 0) split = null;
   const good = cmp?.good ?? null;
-  const total = Math.max(orig.length, mine.length, good?.length ?? 0);
-  let leftSrc = 'orig'; // 왼쪽 작은 판: 원래 | 좋은 수
+  const total = Math.max(orig.length, mine.length, good?.length ?? 0, cmp?.best?.length ?? 0);
+  let leftSrc = 'orig'; // 왼쪽 작은 판: 원래 | 좋은 수 | 최선
+  let third = 'good'; // 표의 세 번째 줄
+  const best = cmp?.best?.length ? cmp.best : null;
   const views = {
     good: review.lines.good && { ...start, steps: [...pre, ...review.lines.good], pre: pre.length, arrow: 'good', first: pre.length },
     bad: review.lines.bad && { ...start, steps: [...pre, ...review.lines.bad], pre: pre.length, arrow: 'bad', first: pre.length },
@@ -552,7 +554,11 @@ function showReview(scene, review, end, cmp) {
       const k = Math.min(step, line.length);
       return k ? line[k - 1] : { fen: start.fen, uci: start.last, cp: null };
     };
-    const leftLine = leftSrc === 'good' && good ? good : orig;
+    // 세 번째 갈래(표의 세 번째 줄): 왼쪽 판에서 고른 좋은 수·최선, 원래를 고르면 마지막에 고른 것
+    if (leftSrc !== 'orig') third = leftSrc;
+    const lines = { orig, good, best };
+    const extra = lines[third] ? third : good ? 'good' : best ? 'best' : null;
+    const leftLine = lines[leftSrc] ?? orig;
     const [o, m] = [at(leftLine), at(mine)];
     cmpBoards[0].set(o.fen, [], o.uci);
     cmpBoards[1].set(m.fen, [], m.uci);
@@ -561,17 +567,19 @@ function showReview(scene, review, end, cmp) {
     if (loss) {
       const upto = (list, k) => (list ?? []).slice(0, k).reduce((a, x) => a + (x ?? 0), 0);
       const lost = (x) => (x ? `−${(x / 100).toFixed(1)}` : '0.0');
-      const leftLoss = leftSrc === 'good' && loss.good ? loss.good : loss.orig;
-      $('cmpOrigScore').textContent = lost(upto(leftLoss, step));
+      $('cmpOrigScore').textContent = lost(upto(loss[leftSrc] ?? loss.orig, step));
       $('cmpMineScore').textContent = lost(upto(loss.mine, step));
       const k = Math.min(step, loss.orig.length);
       const d = upto(loss.orig, k) - upto(loss.mine, k);
-      // 좋은 수 갈래도 같은 계산으로(갈래가 끝난 뒤로는 갈래 끝까지)
-      const kg = good && loss.good ? Math.min(step, good.length, loss.orig.length) : 0;
-      const dg = upto(loss.orig, kg) - upto(loss.good, kg);
+      // 좋은 수·최선 갈래도 같은 계산으로(갈래가 끝난 뒤로는 갈래 끝까지)
+      const vs = (line, list) => {
+        const kk = line && list ? Math.min(step, line.length, loss.orig.length) : 0;
+        return kk ? upto(loss.orig, kk) - upto(list, kk) : null;
+      };
+      const part = (name, x) => (x == null ? '' : `<span>${name} <b class="gain ${gainClass(x)}">${signed(x)}</b></span>`);
       $('cmpSum').innerHTML = `<span class="label">여기까지 원래 대비</span>
-        <span class="row"><span>이번 <b class="gain ${gainClass(d)}">${signed(d)}</b></span>${kg ? `<span>좋은 수 <b class="gain ${gainClass(dg)}">${signed(dg)}</b></span>` : ''}</span>
-        <small>판 위 숫자: 그 수까지 내 수가 잃은 점수의 합</small>`;
+        <span class="row">${part('이번', d)}${part('좋은 수', vs(good, loss.good))}${part('최선', vs(best, loss.best))}</span>
+        <small>판 위 숫자: 그 수까지 내 수가 잃은 점수의 합. 좋은 수는 장면까지 원래대로 두고 장면부터 최선, 최선은 처음부터 양쪽 모두 엔진 최선</small>`;
     } else {
       $('cmpOrigScore').textContent = o.cp != null ? pawns(o.cp) : '';
       $('cmpMineScore').textContent = m.cp != null ? pawns(m.cp) : '';
@@ -579,17 +587,22 @@ function showReview(scene, review, end, cmp) {
     $('cmpSum').hidden = !loss;
     for (const b of document.querySelectorAll('#cmpLeftPick button')) {
       b.setAttribute('aria-pressed', String(b.dataset.src === leftSrc));
-      b.hidden = b.dataset.src === 'good' && !good;
+      b.hidden = !lines[b.dataset.src];
     }
+    const origBest = cmp?.origBest ?? [];
     const rows = [];
     for (let k = 0; k < total; k++) {
-      const cell = (x, cls = '') => `<td class="m ${cls}">${x ? `${esc(x.san)}<small>${x.cp != null ? pawns(x.cp) : ''}</small>` : ''}</td>`;
+      const cell = (x, cls = '', note = '') => `<td class="m ${cls}">${x ? `${esc(x.san)}<small>${x.cp != null ? pawns(x.cp) : ''}</small>${note}` : ''}</td>`;
       const cls = [k === step - 1 ? 'now' : '', k === split ? 'split' : ''].filter(Boolean).join(' ');
       const mineDiff = split != null && k >= split ? 'diff' : '';
-      const goodDiff = good?.[k] && orig[k]?.uci !== good[k].uci ? 'better' : '';
-      rows.push(`<tr class="${cls}" data-step="${k + 1}"><td class="n">${moveNo(k)}</td>${cell(orig[k])}${cell(mine[k], mineDiff)}${good ? cell(good[k], goodDiff) : ''}</tr>`);
+      const ex = extra && lines[extra];
+      const exDiff = ex?.[k] && orig[k]?.uci !== ex[k].uci ? 'better' : '';
+      // 원래 수가 0.5폰 이상 잃었으면 그 자리의 최선 수를 적는다
+      const note = origBest[k] ? `<em class="best-note">최선 ${esc(origBest[k])}</em>` : '';
+      rows.push(`<tr class="${cls}" data-step="${k + 1}"><td class="n">${moveNo(k)}</td>${cell(orig[k], '', note)}${cell(mine[k], mineDiff)}${ex ? cell(ex[k], exDiff) : ''}</tr>`);
     }
-    $('cmpMoves').innerHTML = `<table class="${good ? 'three' : ''}"><thead><tr><th></th><th>원래</th><th>이번</th>${good ? '<th>좋은 수</th>' : ''}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    const head = { good: '좋은 수', best: '최선' }[extra] ?? '';
+    $('cmpMoves').innerHTML = `<table class="${extra ? 'three' : ''}"><thead><tr><th></th><th>원래</th><th>이번</th>${extra ? `<th>${head}</th>` : ''}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
     $('cmpMoves').querySelector('tr.now')?.scrollIntoView({ block: 'nearest' });
   }
 

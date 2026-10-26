@@ -156,7 +156,7 @@ async function anyMove(page) {
     await page.waitForSelector('#cmpMine g[data-square="f3"][data-piece="bn"]');
     const split = (await page.innerText('#cmpMoves tr.split')).replace(/\s+/g, ' ');
     console.log('갈림:', split, '·', await page.textContent('#stepInfo'), '·', await page.textContent('#cmpOrigScore'), await page.textContent('#cmpMineScore'));
-    assert.match(split, /^14\.\.\. Qd7\s*[+−]?\d+\.\d Nxf3\+\s*[+−]?\d+\.\d Nxf3\+\s*[+−]?\d+\.\d$/);
+    assert.match(split, /^14\.\.\. Qd7\s*[+−]?\d+\.\d 최선 Nxf3\+ Nxf3\+\s*[+−]?\d+\.\d Nxf3\+\s*[+−]?\d+\.\d$/);
     // 판 위 숫자는 여기까지 잃은 점수의 합. 마지막 수에서 둘의 차가 결과의 '원래 대비'와 같다
     const headline = (await page.textContent('#reviewGain')).replace('원래 대비 ', '');
     const total = Number((await page.textContent('#stepCount')).split(' / ')[1]);
@@ -172,6 +172,16 @@ async function anyMove(page) {
     await page.click('#cmpLeftPick [data-src="good"]');
     await page.waitForSelector('#cmpOrig g[data-square="f3"][data-piece="bn"]');
     await page.screenshot({ path: path.join(SHOTS, 'app-compare.png') });
+    // 최선 갈래: 처음부터 엔진 최선. 고르면 표의 세 번째 줄도 최선으로
+    await page.click('#cmpLeftPick [data-src="best"]');
+    assert.match(await page.innerText('#cmpMoves thead'), /원래\s+이번\s+최선/);
+    assert.match(await page.innerText('#cmpSum'), /최선 \+\d+\.\d/);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(SHOTS, 'app-best.png') });
+    console.log('최선 갈래:', (await page.innerText('#cmpSum')).replace(/\s+/g, ' '));
+    // 원래 수가 크게 잃은 자리(14...Qd7)에는 최선 수가 적혀 있다
+    assert.match(await page.innerText('#cmpMoves tr.split'), /최선 Nxf3\+/);
+    await page.click('#cmpLeftPick [data-src="good"]');
     await page.click('#cmpLeftPick [data-src="orig"]');
     await page.waitForSelector('#cmpOrig g[data-square="d7"][data-piece="bq"]');
     await page.click('#nextStep');

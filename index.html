@@ -242,12 +242,12 @@
   #play.comparing .board-wrap, #play.comparing .player, #play.comparing .history { display: none; }
   .cmp-sum { display: grid; gap: 2px; font-size: .92rem; margin-bottom: 10px; }
   .cmp-sum .label { font-size: .74rem; font-weight: 700; letter-spacing: .06em; color: var(--brand); }
-  .cmp-sum .row { display: flex; gap: 18px; }
+  .cmp-sum .row { display: flex; flex-wrap: wrap; gap: 4px 16px; }
   .cmp-sum .row b { font-size: 1.05rem; margin-left: 2px; }
   .cmp-sum small { display: block; color: var(--faint); font-size: .74rem; }
   .cmp-boards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .cmp-boards figure { margin: 0; }
-  .cmp-boards figcaption { display: flex; justify-content: space-between; align-items: center; min-height: 30px; font-size: .85rem; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+  .cmp-boards figcaption { display: flex; flex-wrap: wrap; gap: 0 6px; justify-content: space-between; align-items: center; min-height: 30px; font-size: .85rem; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
   .cmp-boards figcaption b { font-variant-numeric: tabular-nums; color: var(--ink); }
   .mini { width: 100%; aspect-ratio: 1; border-radius: 2px; overflow: hidden; box-shadow: 0 0 0 1px rgba(27, 26, 23, .3); }
   .cmp-moves { margin-top: 12px; max-height: 220px; overflow-y: auto; border-top: 1.5px solid var(--ink); border-bottom: 1px solid var(--rule); }
@@ -259,10 +259,11 @@
   .cmp-moves tr.now td { background: var(--paper-2); }
   .cmp-moves td.m.diff { color: var(--amber); }
   .cmp-moves td.m.better { color: var(--win); font-weight: 700; }
+  .cmp-moves .best-note { display: block; font-style: normal; font-size: .72rem; font-weight: 650; color: var(--win); }
   .cmp-moves table.three { font-size: .84rem; }
   .cmp-moves table.three td { padding: 6px 5px; }
   .cmp-moves table.three td small { display: block; margin-left: 0; font-size: .72rem; }
-  .pick { display: inline-flex; gap: 10px; }
+  .pick { display: inline-flex; gap: 8px; }
   .pick button { font-size: .8rem; padding: 2px 0; color: var(--muted); border-bottom: 1.5px solid transparent; }
   .pick button[aria-pressed="true"] { color: var(--brand); font-weight: 700; border-bottom-color: var(--brand); }
   .cmp-moves tr.split td.n::after { content: '갈림'; display: block; font-size: .65rem; color: var(--amber); font-weight: 700; }
@@ -413,7 +414,7 @@
       <div class="cmp" id="cmpPanel" hidden>
         <div class="cmp-sum" id="cmpSum" hidden></div>
         <div class="cmp-boards">
-          <figure><figcaption><span class="pick" id="cmpLeftPick"><button type="button" data-src="orig">원래</button><button type="button" data-src="good">좋은 수</button></span><b id="cmpOrigScore"></b></figcaption><div class="mini" id="cmpOrig"></div></figure>
+          <figure><figcaption><span class="pick" id="cmpLeftPick"><button type="button" data-src="orig">원래</button><button type="button" data-src="good">좋은 수</button><button type="button" data-src="best">최선</button></span><b id="cmpOrigScore"></b></figcaption><div class="mini" id="cmpOrig"></div></figure>
           <figure><figcaption>이번 <b id="cmpMineScore"></b></figcaption><div class="mini" id="cmpMine"></div></figure>
         </div>
         <div class="cmp-moves" id="cmpMoves"></div>
