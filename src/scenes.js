@@ -1,6 +1,7 @@
 import { classify, cp, sanOf, trimLine } from './analyze.js';
 
-export const LEAD = 4; // 장면 몇 수 전(내 수 기준)부터 두는지
+export const LEAD = 4; // 장면 몇 수 전(내 수 기준)부터 두는지: 장면마다 2~LEAD 사이
+const PREROLL = 6; // 시작 전에 원래 게임을 빠르게 다시 보여 줄 반수
 export const AFTER = 2; // 장면 뒤로 내 수를 몇 수 더 두는지
 const RECHECK_DEPTH = 16; // 폰에서 포지션당 최대 1~2초
 
@@ -43,7 +44,10 @@ export async function buildScenes(engine, game, positions, evals, side, onScene 
 }
 
 function base(game, positions, i, side) {
-  const start = Math.max(i - 2 * LEAD, side);
+  // 늘 같은 수만큼 앞에서 시작하면 그것 자체가 신호가 되고, 길면 원래 길에서 벗어나기 쉽다
+  const lead = 2 + ((i * 7 + (game.endTime ?? 0)) % (LEAD - 1));
+  const start = Math.max(i - 2 * lead, side);
+  const pre = Math.max(0, start - PREROLL);
   const end = Math.min(i + 2 * AFTER + 1, positions.length - 1);
   return {
     id: `${game.url}#${i}`,
@@ -57,6 +61,9 @@ function base(game, positions, i, side) {
     moveNo: Math.floor(i / 2) + 1,
     startPly: start,
     startFen: positions[start].fen,
+    // 시작 전에 빠르게 보여 줄 원래 게임의 앞 수순(기억을 되살리려고)
+    preFen: positions[pre].fen,
+    preLine: positions.slice(pre, start).map((p) => p.uci),
     // 원래 게임의 수. 내가 원래대로 두는 동안 상대도 원래대로 둔다.
     line: positions.slice(start, end).map((p) => p.uci),
     playedSan: positions[i].san,

@@ -109,6 +109,23 @@ function ago(ms) {
   return days <= 0 ? '오늘' : days === 1 ? '어제' : `${days}일 전`;
 }
 
+const SAME = 100; // 원래 게임과 1폰 안 차이면 비슷한 것으로
+
+function pawns(c) {
+  if (c >= 1000) return '메이트';
+  if (c <= -1000) return '메이트 당함';
+  return (c > 0 ? '+' : c < 0 ? '−' : '') + Math.abs(c / 100).toFixed(1);
+}
+
+const RESULT = { win: '이긴 판', checkmated: '진 판', resigned: '진 판', timeout: '진 판', abandoned: '진 판', lose: '진 판' };
+
+function gameLabel(scene) {
+  const days = Math.floor((Date.now() / 1000 - scene.endTime) / 86400);
+  const when = days <= 0 ? '오늘' : days === 1 ? '어제' : days < 14 ? `${days}일 전` : days < 60 ? `${Math.floor(days / 7)}주 전` : `${Math.floor(days / 30)}달 전`;
+  const result = scene.me.result ? (RESULT[scene.me.result] ?? '비긴 판') : null;
+  return [when, TIME_CLASS[scene.timeClass] ?? scene.timeClass, result].filter(Boolean).join(' · ');
+}
+
 const OUTCOME = {
   found: { mark: '✅', title: (s) => (s.fake ? '잘 넘겼어요' : s.kind === 'blunder' ? '피했어요' : '찾았어요'), good: true },
   missed: { mark: '💡', title: (s) => (s.fake ? '흔들렸어요' : s.kind === 'blunder' ? '걸렸어요' : '놓쳤어요'), good: false },
@@ -127,6 +144,8 @@ async function renderHome() {
   const since = Date.now() - 14 * 86400e3;
   const recentDays = (days ?? []).filter((d) => new Date(d).getTime() >= since).length;
   const analyzed = games.filter((g) => g.status === 'done').length;
+  const compared = results.filter((r) => r.compare);
+  const better = compared.filter((r) => r.compare.now - r.compare.orig >= SAME).length;
   const remaining = scenes.filter((s) => !played.has(s.id)).length;
 
   $('remaining').innerHTML = `${remaining}<small>장면 준비됨</small>`;
@@ -134,11 +153,12 @@ async function renderHome() {
   $('closedNote').textContent = `앱을 닫아 둔 동안 ${madeWhileClosed}개 만들어 뒀어요`;
   $('stats').innerHTML = `
     <div><b>${judged.length ? `${found}/${judged.length}` : '–'}</b><span>찾은 장면</span></div>
-    <div><b>${analyzed}</b><span>분석한 게임</span></div>
+    <div><b>${compared.length ? `${better}/${compared.length}` : '–'}</b><span>원래보다 나은 판</span></div>
     <div><b>${recentDays}</b><span>최근 2주 연 날</span></div>`;
   const next = await nextScene();
   $('playBtn').disabled = !next;
   $('playBtn').textContent = next ? (remaining ? '두기' : '못 찾은 장면 다시 두기') : '장면을 만드는 중…';
+  $('analyzed').textContent = analyzed ? `분석한 게임 ${analyzed}판` : '';
 
   const byId = new Map(scenes.map((s) => [s.id, s]));
   const recent = results.slice(-5).reverse().map((r) => {
@@ -203,7 +223,7 @@ async function startScene() {
   $('me').textContent = scene.me.name;
   $('meAvatar').className = `avatar ${meColor}`;
   $('meAvatar').textContent = scene.me.name[0]?.toUpperCase() ?? '';
-  $('gameInfo').textContent = `${dateLabel(scene.endTime)} · ${TIME_CLASS[scene.timeClass] ?? scene.timeClass}`;
+  $('gameInfo').textContent = gameLabel(scene);
   setTurn(null);
   board?.destroy();
   board = new Board($('board'), { bottom: meColor, onMove: () => {} });
@@ -211,12 +231,22 @@ async function startScene() {
   playEngine ??= new Engine(ENGINE_URL);
   await playEngine.init();
   $('history').hidden = false;
-  const result = await playScene(scene, playEngine, { board, clock: setClock, turn: setTurn, history: setHistory }, {
+  let skip = false;
+  $('board').onclick = () => { skip = true; };
+  const result = await playScene(scene, playEngine, {
+    board,
+    clock: setClock,
+    turn: setTurn,
+    history: setHistory,
+    preroll: (on) => { $('preroll').hidden = !on; skip = false; },
+    skipPreroll: () => skip,
+  }, {
     botDelay: params.has('fast') ? 0 : 600,
     signal: mine.signal,
   });
   if (!result) return;
   $('history').hidden = true;
+  $('board').onclick = null;
   const { text, review, end, ...record } = result;
   await store.add('results', record);
   showResult(scene, result);
@@ -233,6 +263,15 @@ function showResult(scene, result) {
   if (scene.origSpent != null) times.push(`원래 게임에선 ${Math.round(scene.origSpent)}초`);
   $('resultTime').textContent = times.join(' · ');
   $('resultTime').hidden = !times.length;
+
+  // 원래 게임과 비교: 같은 수만큼 둔 시점의 형세
+  const c = result.compare;
+  if (c) {
+    const d = c.now - c.orig;
+    const verdict = d >= SAME ? '원래보다 잘 뒀어요' : d <= -SAME ? '원래보다 나빠졌어요' : '원래와 비슷해요';
+    $('compare').innerHTML = `<span>원래 <b>${pawns(c.orig)}</b> → 이번 <b>${pawns(c.now)}</b></span><span class="${d >= SAME ? 'up' : d <= -SAME ? 'down' : ''}">${verdict}</span>`;
+  }
+  $('compare').hidden = !c;
 
   showReview(scene, result.review, result.end);
   $('resultLink').href = `${scene.gameUrl}?move=${scene.ply + 1}`;

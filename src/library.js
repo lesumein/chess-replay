@@ -59,7 +59,7 @@ export async function analyzeGame(engine, g, user, onScene = () => {}) {
     url: g.url,
     endTime: g.endTime,
     timeClass: g.timeClass,
-    me: { name: me.username, rating: me.rating },
+    me: { name: me.username, rating: me.rating, result: me.result },
     opp: { name: opp.username, rating: opp.rating },
   };
   const scenes = await buildScenes(engine, meta, positions, evals, side, async (scene) => {

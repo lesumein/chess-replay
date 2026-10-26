@@ -1,30 +1,35 @@
 // 장면 하나를 봇과 다시 둔다. 장면이 어디인지는 끝날 때까지 알려 주지 않는다.
-import { cp, sanOf, trimLine, walkLine } from './analyze.js';
+import { cp, sanOf, trimLine, walkLine, LOSS } from './analyze.js';
 import { botMove } from './bot.js';
-import { AFTER, LEAD } from './scenes.js';
+import { AFTER } from './scenes.js';
 
 export const SECONDS_PER_MOVE = 20; // 래피드 정도: 내 수 하나에 평균 20초
 const JUDGE_DEPTH = 14;
 const OK_LOSS = 120; // 최선과 이 정도 차이면 찾은 것으로 본다
+const CHECK_DEPTH = 12; // 끝난 뒤 이번 판을 훑어보는 깊이(원래 게임과 비교, 다른 길에서 놓친 것)
+const PREROLL_MS = 450; // 원래 게임 앞 수순을 보여 주는 속도
 
-// ui: { board, clock(ms), turn('me' | 'opp' | null), history(positions) }
+// ui: { board, clock(ms), turn('me' | 'opp' | null), history(positions), preroll(on), skipPreroll() }
 // signal로 중간에 그만두면 null을 돌려준다.
 export async function playScene(scene, engine, ui, { botDelay = 600, signal } = {}) {
   const side = scene.side;
   const endPly = scene.ply + 2 * AFTER;
   let fen = scene.startFen;
   let ply = scene.startPly;
-  let last = null;
+  let last = scene.preLine?.at(-1) ?? null;
   let onLine = true;
-  let clock = SECONDS_PER_MOVE * 1000 * (LEAD + 1 + AFTER);
+  const myMoves = (scene.ply - scene.startPly) / 2 + 1 + AFTER;
+  let clock = SECONDS_PER_MOVE * 1000 * myMoves;
   let atScene = null; // { fen, legal, uci, ms }
   let timedOut = false;
-  const history = [{ fen, last: null }]; // 이번에 지나온 포지션들(되돌려 보기용)
+  const history = [{ fen, last }]; // 이번에 지나온 포지션들(되돌려 보기용)
   const played = [];
 
   ui.clock(clock);
   ui.history?.(history);
   await engine.newGame();
+  await preroll(scene, engine, ui, botDelay ? PREROLL_MS : 0, signal);
+  if (signal?.aborted) return null;
   while (true) {
     const legal = await engine.legalMoves(fen);
     if (!legal.length) break;
@@ -52,10 +57,11 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal } = 
       uci = move;
       if (signal?.aborted) return null;
     }
-    ({ fen } = await engine.play(fen, uci));
+    let check;
+    ({ fen, check } = await engine.play(fen, uci));
     last = uci;
     played.push(uci);
-    history.push({ fen, last });
+    history.push({ fen, last, check });
     ui.history?.(history);
     ply++;
     if (ply > endPly) break;
@@ -64,8 +70,64 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal } = 
   ui.turn(null);
   const { badLine, ...result } = await judge(scene, engine, atScene, timedOut);
   // 끝난 판: 이번에 둔 수를 시작부터 넘겨 볼 수 있게
-  const end = { fen: scene.startFen, last: null, startPly: scene.startPly, steps: await walkLine(engine, scene.startFen, played) };
-  return { ...result, review: await review(scene, engine, atScene, result.outcome, badLine), end };
+  const end = { fen: scene.startFen, last: history[0].last, startPly: scene.startPly, steps: await walkLine(engine, scene.startFen, played) };
+  const check = await checkGame(scene, engine, history, played, atScene);
+  if (result.outcome === 'deviated') result.text = describe(scene, 'deviated', '', check.issue);
+  return { ...result, compare: check.compare, review: await review(scene, engine, atScene, result.outcome, badLine), end };
+}
+
+// 시작 전에 원래 게임의 앞 수순을 빠르게 다시 보여 준다(오래된 게임도 흐름이 떠오르게). 탭하면 건너뛴다.
+async function preroll(scene, engine, ui, ms, signal) {
+  if (!scene.preLine?.length) return;
+  ui.preroll?.(true);
+  let fen = scene.preFen;
+  ui.board.set(fen, []);
+  for (const uci of scene.preLine) {
+    await sleep(ms);
+    if (signal?.aborted || ui.skipPreroll?.()) break;
+    ({ fen } = await engine.play(fen, uci));
+    ui.board.set(fen, [], uci);
+  }
+  ui.preroll?.(false);
+}
+
+// 끝난 뒤 이번 판을 훑어본다.
+// compare: 같은 수만큼 둔 시점의 형세(내 쪽에서 본 점수) — 원래 게임 vs 이번
+// issue: 장면 말고, 이번에 둔 길에서 놓친 기회나 큰 실수 중 첫 번째
+async function checkGame(scene, engine, history, played, atScene) {
+  const side = scene.side;
+  const mine = (ply, score) => (ply % 2 === side ? cp(score) : -cp(score));
+  const evals = [];
+  for (let k = 0; k < history.length; k++) {
+    const legal = await engine.legalMoves(history[k].fen);
+    // 체크메이트·스테일메이트는 엔진에 묻지 않는다
+    evals.push(legal.length
+      ? { ...(await engine.evaluate(history[k].fen, CHECK_DEPTH)), legal }
+      : { score: { type: history[k].check ? 'mate' : 'cp', value: 0 }, legal });
+  }
+  const n = played.length;
+  const nowCp = mine(scene.startPly + n, evals[n].score);
+  // 원래 게임에서 같은 수만큼 둔 포지션
+  let origFen = scene.startFen;
+  const orig = scene.line.slice(0, n);
+  for (const uci of orig) ({ fen: origFen } = await engine.play(origFen, uci));
+  const origLegal = await engine.legalMoves(origFen);
+  const origEval = origLegal.length ? await engine.evaluate(origFen, CHECK_DEPTH) : { score: { type: 'cp', value: 0 } };
+  const origCp = mine(scene.startPly + orig.length, origEval.score);
+
+  let issue = null;
+  for (let k = 0; k < n && !issue; k++) {
+    const ply = scene.startPly + k;
+    if (ply % 2 !== side || (atScene && ply === scene.ply)) continue;
+    const before = cp(evals[k].score);
+    const after = -cp(evals[k + 1].score);
+    const best = evals[k].best;
+    if (!best || best === played[k] || before - after < LOSS) continue;
+    if (before >= 200 || after <= -100) {
+      issue = { moveNo: Math.floor(ply / 2) + 1, bestSan: await sanOf(engine, history[k].fen, evals[k].legal, best), kind: before >= 200 ? 'missed' : 'blunder' };
+    }
+  }
+  return { compare: { orig: origCp, now: nowCp }, issue };
 }
 
 function waitForMove(ui, fen, legal, last, clockMs, onTick, signal) {
@@ -155,7 +217,7 @@ function motif(scene) {
   return '';
 }
 
-export function describe(scene, outcome, userSan = '') {
+export function describe(scene, outcome, userSan = '', issue = null) {
   const n = `${scene.moveNo}수`;
   const answer = scene.fake
     ? `${n}엔 특별한 수가 없었어요.`
@@ -176,6 +238,9 @@ export function describe(scene, outcome, userSan = '') {
     case 'timeout':
       return answer;
     default:
-      return `원래 게임과 달라져서 그 장면이 오지 않았어요. ${answer}`;
+      if (!issue) return `원래 게임과 달라져 그 장면은 오지 않았고, 이번 길에선 큰 실수가 없었어요.`;
+      return issue.kind === 'missed'
+        ? `원래 게임과 달라져 그 장면은 오지 않았어요. 이번 길에선 ${issue.moveNo}수에 ${josa(issue.bestSan, '이', '가')} 있었어요.`
+        : `원래 게임과 달라져 그 장면은 오지 않았어요. 이번 길에선 ${issue.moveNo}수에 ${josa(issue.bestSan, '이', '가')} 안전했어요.`;
   }
 }

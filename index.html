@@ -126,6 +126,13 @@
   .history #histNote { color: var(--warn); visibility: hidden; }
   .history.peeking #histNote { visibility: visible; }
 
+  .board-wrap { position: relative; }
+  .preroll { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); background: rgba(20, 20, 20, .72); color: #fff; font-size: .82rem; padding: 6px 12px; border-radius: 999px; white-space: nowrap; pointer-events: none; z-index: 5; }
+  .compare { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; margin: 4px 0 6px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); font-size: .9rem; }
+  .compare b { font-variant-numeric: tabular-nums; }
+  .compare .up { color: var(--good); font-weight: 650; }
+  .compare .down { color: var(--bad); font-weight: 650; }
+
   /* 결과 */
   .result { margin-top: 12px; animation: rise .25s ease-out; }
   @keyframes rise { from { transform: translateY(12px); opacity: 0; } }
@@ -200,6 +207,7 @@
       <div class="count" id="remaining">0<small>장면 준비됨</small></div>
       <div class="closed small" id="closedNote" hidden></div>
       <button class="btn block" id="playBtn" type="button" disabled>두기</button>
+      <div class="small muted" id="analyzed"></div>
       <div class="working small muted" id="working" role="status"><span class="spinner" id="spinner" hidden></span><span id="note"></span></div>
     </div>
 
@@ -223,7 +231,10 @@
       <span class="who"><span class="name" id="opp"></span><span class="material" id="oppMaterial"></span></span>
       <span class="thinking" id="thinking" hidden aria-label="상대가 생각 중"><i></i><i></i><i></i></span>
     </div>
-    <div id="board"></div>
+    <div class="board-wrap">
+      <div id="board"></div>
+      <div class="preroll" id="preroll" hidden>원래 게임 흐름 · 탭하면 바로 시작</div>
+    </div>
     <div class="player">
       <span class="avatar" id="meAvatar"></span>
       <span class="who"><span class="name" id="me"></span><span class="material" id="meMaterial"></span></span>
@@ -238,6 +249,7 @@
     <div class="card result" id="result" hidden>
       <div class="head"><span class="badge" id="resultBadge"></span><span class="title" id="resultTitle"></span></div>
       <p id="resultText"></p>
+      <div class="compare" id="compare" hidden></div>
       <div class="time" id="resultTime"></div>
       <div class="review" id="review">
         <div class="tabs" id="tabs" role="tablist">

@@ -56,6 +56,7 @@ async function anyMove(page) {
     assert.ok(a1.x > h8.x && a1.y < h8.y, 'a1이 오른쪽 위가 아님');
     // 장면 표시가 없어야 한다
     assert.ok(!/14|장면|찾/.test(await page.innerText('#play')), '두는 동안 장면 신호가 보임');
+    assert.match(await page.textContent('#gameInfo'), /블리츠 · 이긴 판$/);
 
     // 기물 우위: 3.Bxf7+ Kxf7로 흑(나)이 비숍을, 백이 폰을 잡아 흑 +3 (7...exd4로 폰 하나 더)
     await page.waitForFunction(() => document.querySelector('#meMaterial').textContent.includes('+3'));
@@ -64,20 +65,22 @@ async function anyMove(page) {
     assert.ok(!(await page.textContent('#oppMaterial')).includes('+'));
     await page.screenshot({ path: path.join(SHOTS, 'app-play.png') });
 
-    // 원래 게임대로 10...Nge5 11...d3 12...Na5 13...Be6, 그리고 14...Nxf3+
-    for (const uci of ['g4e5', 'd4d3']) await move(page, uci);
-    // 지난 수 되돌려 보기: 두 칸 전(내 d3 전)으로 갔다가 돌아오면 다시 둘 수 있다
+    // 시작은 장면 2~4수 전. 원래 게임대로 10...Nge5 11...d3 12...Na5 13...Be6 중 시작부터, 그리고 14...Nxf3+
+    const scene27 = await page.evaluate(async () => (await (await import('./src/store.js')).getAll('scenes')).find((x) => x.ply === 27));
+    console.log('시작:', scene27.startPly, '앞 수순', scene27.preLine.length, '반수');
+    assert.ok([19, 21, 23].includes(scene27.startPly));
+    const lead = { 19: ['g4e5', 'd4d3', 'c6a5', 'c8e6'], 21: ['d4d3', 'c6a5', 'c8e6'], 23: ['c6a5', 'c8e6'] }[scene27.startPly];
+    await move(page, lead[0]);
+    // 지난 수 되돌려 보기: 한 칸 전(상대 수 전)으로 갔다가 돌아오면 다시 둘 수 있다
     await page.waitForSelector('#board[data-active="true"]');
+    const fenNow = await page.evaluate(() => [...document.querySelectorAll('#board g[data-piece]')].map((g) => g.dataset.square + g.dataset.piece).sort().join());
     await page.click('#histPrev');
-    await page.click('#histPrev');
-    await page.waitForSelector('#board g[data-square="d4"][data-piece="bp"]');
+    await page.waitForFunction((f) => [...document.querySelectorAll('#board g[data-piece]')].map((g) => g.dataset.square + g.dataset.piece).sort().join() !== f, fenNow);
     assert.strictEqual(await page.getAttribute('#board', 'data-active'), 'false');
     assert.ok(await page.isVisible('#histNote'));
     await page.click('#histNext');
-    await page.click('#histNext');
     await page.waitForSelector('#board[data-active="true"]');
-    assert.ok(await page.$('#board g[data-square="d3"][data-piece="bp"]'));
-    for (const uci of ['c6a5', 'c8e6']) await move(page, uci);
+    for (const uci of lead.slice(1)) await move(page, uci);
     assert.ok(await page.$('#board g[data-square="f3"][data-piece="wn"]'), '원래 게임대로라면 f3에 백 나이트가 있어야 함');
     await move(page, 'e5f3');
     while (await anyMove(page));
@@ -87,6 +90,10 @@ async function anyMove(page) {
     console.log('결과:', text);
     assert.match(text, /14수에서 Nxf3\+를 찾았어요/);
     assert.strictEqual(await page.textContent('#resultTitle'), '찾았어요');
+    // 원래 게임과 비교(테스트는 장면 뒤로 아무 수나 두므로 판정 글자만 확인)
+    const compare = await page.innerText('#compare');
+    console.log('비교:', compare.replace(/\s+/g, ' '));
+    assert.match(compare, /^원래 [+−]?\d+\.\d → 이번 [+−]?\d+\.\d\s+원래(보다 잘 뒀어요|보다 나빠졌어요|와 비슷해요)$/);
     // 장면 포지션으로 돌아가 좋은 수를 화살표로 보여 준다
     await page.waitForSelector('#board .arrow-success');
     assert.ok(await page.$('#board g[data-square="e5"][data-piece="bn"]'), '장면 포지션이 아님');
@@ -104,8 +111,8 @@ async function anyMove(page) {
     assert.ok(await page.isHidden('#tabs [data-view="bad"]'));
     await page.click('#tabs [data-view="end"]');
     await page.waitForFunction(() => !document.querySelector('#board .arrow-success'));
-    // 끝난 판: 이번에 둔 수를 시작부터 넘겨 볼 수 있다(10...Nge5부터)
-    assert.match(await page.innerText('#lineText'), /^10\.\.\.\s*Nge5 11\./);
+    // 끝난 판: 이번에 둔 수를 시작부터 넘겨 볼 수 있다
+    assert.match(await page.innerText('#lineText'), /^1[0-2]\.\.\.\s*(Nge5|d3|Na5) 1[1-3]\./);
     assert.ok(await page.isDisabled('#nextStep'));
     await page.click('#prevStep');
     assert.ok(await page.isEnabled('#nextStep'));
@@ -119,6 +126,7 @@ async function anyMove(page) {
     const stats = (await page.textContent('#stats')).replace(/\s+/g, ' ');
     console.log('홈:', stats);
     assert.match(stats, /1\/1\s*찾은 장면/);
+    assert.match(stats, /[01]\/1\s*원래보다 나은 판/);
     assert.match(await page.textContent('#recent'), /14수 놓친 기회 · 찾았어요/);
     assert.match(stats, /1\s*최근 2주 연 날/);
     await page.screenshot({ path: path.join(SHOTS, 'app-home.png') });
