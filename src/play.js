@@ -171,10 +171,13 @@ async function judge(scene, engine, atScene, timedOut) {
 
 // 끝난 뒤 판에 보여 줄 장면: 원래 게임의 그 포지션, 좋은 수(초록)와 내가 둔 수(빨강),
 // 그리고 넘겨 볼 수순 두 줄(좋은 수부터 / 둔 수와 상대의 응수)
+// prefix: 시작한 판에서 장면까지 원래 게임의 수순(좋은 수·둔 수 앞에 이어 붙여 어떻게 그 상태가 됐는지 보이게)
+// lines.orig: 시작한 판부터 원래 게임에서 둔 수순(이번 판과 견주어 어디서 갈렸는지)
 async function review(scene, engine, atScene, outcome, badLine) {
-  let fen = scene.startFen;
-  for (const uci of scene.line.slice(0, scene.ply - scene.startPly)) ({ fen } = await engine.play(fen, uci));
-  const last = scene.ply > scene.startPly ? scene.line[scene.ply - scene.startPly - 1] : null;
+  const startLast = scene.preLine?.at(-1) ?? null;
+  const prefix = await walkLine(engine, scene.startFen, scene.line.slice(0, scene.ply - scene.startPly));
+  const fen = prefix.at(-1)?.fen ?? scene.startFen;
+  const last = prefix.at(-1)?.uci ?? startLast;
   const arrows = [];
   if (!scene.fake) arrows.push({ uci: scene.bestUci, kind: 'good' });
   const mine = atScene?.uci;
@@ -195,7 +198,11 @@ async function review(scene, engine, atScene, outcome, badLine) {
     badLine = [scene.line[scene.ply - scene.startPly], ...scene.refuteLine];
   }
   const bad = badLine ? await walkLine(engine, fen, badLine) : null;
-  return { fen, last, arrows, lines: { good: good?.length ? good : null, bad: bad?.length ? bad : null } };
+  const orig = await walkLine(engine, scene.startFen, scene.line);
+  return {
+    fen, last, arrows, prefix, startFen: scene.startFen, startLast,
+    lines: { good: good?.length ? good : null, bad: bad?.length ? bad : null, orig: orig.length ? orig : null },
+  };
 }
 
 // 받침 있는 글자로 끝나는지(SAN 끝 글자를 읽는 소리 기준)

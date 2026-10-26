@@ -295,22 +295,29 @@ function showResult(scene, result) {
 // 좋은 수: 장면에서 좋은 수부터 이득이 확정될 때까지 / 둔 수: 내가(또는 원래 게임에서) 둔 수와 상대의 응수
 // 끝난 판: 이번에 둔 수를 시작부터 끝까지
 function showReview(scene, review, end) {
-  const fromScene = { fen: review.fen, last: review.last, startPly: scene.ply };
+  const start = { fen: review.startFen, last: review.startLast, startPly: scene.startPly };
+  const pre = review.prefix;
+  // 원래 게임과 이번 판이 처음 갈라진 수
+  const orig = review.lines.orig ?? [];
+  let split = end.steps.findIndex((m, k) => orig[k]?.uci !== m.uci);
+  if (split < 0) split = null;
   const views = {
-    good: review.lines.good && { ...fromScene, steps: review.lines.good, arrow: 'good' },
-    bad: review.lines.bad && { ...fromScene, steps: review.lines.bad, arrow: 'bad' },
-    end: { ...end, arrow: null },
+    good: review.lines.good && { ...start, steps: [...pre, ...review.lines.good], pre: pre.length, arrow: 'good', first: pre.length },
+    bad: review.lines.bad && { ...start, steps: [...pre, ...review.lines.bad], pre: pre.length, arrow: 'bad', first: pre.length },
+    orig: review.lines.orig && { ...start, steps: orig, split, first: split ?? orig.length },
+    end: { ...end, split, first: end.steps.length },
   };
   const tabs = [...$('tabs').querySelectorAll('button')];
   for (const t of tabs) t.hidden = !views[t.dataset.view];
   let view = views.good ? 'good' : views.bad ? 'bad' : 'end';
-  let step = 0; // 0 = 시작 포지션, k = k수 둔 뒤
+  let step = views[view].first; // 0 = 시작한 판, k = k수 둔 뒤
 
-  const label = (startPly, k) => {
+  // 수 번호: 백 수마다, 흑 수는 줄 첫머리나 표시(장면·갈림) 바로 뒤에서만
+  const label = (startPly, k, marked) => {
     const ply = startPly + k;
     const n = Math.floor(ply / 2) + 1;
     if (ply % 2 === 0) return `<i>${n}.</i>`;
-    return k === 0 ? `<i>${n}...</i>` : '';
+    return k === 0 || marked ? `<i>${n}...</i>` : '';
   };
 
   function draw() {
@@ -320,11 +327,15 @@ function showReview(scene, review, end) {
     const fen = step ? line[step - 1].fen : v.fen;
     const last = step ? line[step - 1].uci : v.last;
     const next = line[step];
-    // 좋은 수·둔 수는 다음에 둘 수를 화살표로
-    board.set(fen, [], last, v.arrow && next ? [{ uci: next.uci, kind: v.arrow }] : []);
-    $('lineText').innerHTML = line
-      .map((m, k) => `${label(v.startPly, k)}<span class="${k < step - 1 ? 'done' : k === step - 1 ? 'now' : ''}" data-step="${k + 1}">${esc(m.san)}</span>`)
-      .join(' ');
+    // 좋은 수·둔 수는 장면부터 다음에 둘 수를 화살표로
+    const arrow = v.arrow && next && step >= v.pre ? [{ uci: next.uci, kind: v.arrow }] : [];
+    board.set(fen, [], last, arrow);
+    $('lineText').innerHTML = line.map((m, k) => {
+      const cls = [k < step - 1 ? 'done' : k === step - 1 ? 'now' : '', k < (v.pre ?? 0) ? 'pre' : '', k === v.split ? 'split' : ''].filter(Boolean).join(' ');
+      // 원래 흐름과 장면 이후 사이, 갈라진 곳 앞에 표시
+      const mark = k === v.pre && k > 0 ? '<b class="sep">장면</b>' : k === v.split ? '<b class="sep">여기서 갈림</b>' : '';
+      return `${mark}${label(v.startPly, k, !!mark)}<span class="${cls}" data-step="${k + 1}">${esc(m.san)}</span>`;
+    }).join(' ');
     $('stepInfo').textContent = `${step} / ${line.length}`;
     $('prevStep').disabled = step === 0;
     $('nextStep').disabled = step === line.length;
@@ -333,8 +344,8 @@ function showReview(scene, review, end) {
   for (const t of tabs) {
     t.onclick = () => {
       view = t.dataset.view;
-      // 끝난 판은 끝 모습부터, 나머지는 장면부터
-      step = view === 'end' ? views.end.steps.length : 0;
+      // 좋은 수·둔 수는 장면부터, 원래는 갈라진 곳부터, 이번은 끝 모습부터
+      step = views[view].first;
       draw();
     };
   }

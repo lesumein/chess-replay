@@ -98,15 +98,25 @@ async function anyMove(page) {
     await page.waitForSelector('#board .arrow-success');
     assert.ok(await page.$('#board g[data-square="e5"][data-piece="bn"]'), '장면 포지션이 아님');
     await page.screenshot({ path: path.join(SHOTS, 'app-result.png') });
-    // 좋은 수 수순: Nxf3+ 다음 상대의 응수, 그다음 이득까지
+    // 좋은 수 수순: 시작한 판부터 장면까지(원래 흐름), 그다음 Nxf3+와 이득까지. 장면 포지션에서 열린다
     const line = await page.innerText('#lineText');
-    console.log('수순:', line);
-    assert.match(line, /^14\.\.\.\s*Nxf3\+ 15\./);
+    console.log('수순:', line.replace(/\s+/g, ' '));
+    assert.match(line, /^1[0-2]\.\.\.\s*(Nge5|d3|Na5) /);
+    assert.match(line, /장면\s*14\.\.\.\s*Nxf3\+ 15\./);
+    const [at] = (await page.textContent('#stepInfo')).split(' / ').map(Number);
     await page.click('#nextStep');
     await page.waitForSelector('#board g[data-square="f3"][data-piece="bn"]');
-    assert.strictEqual(await page.textContent('#stepInfo'), '1 / ' + line.split(/\s+/).filter((t) => !/^\d+\.+$/.test(t)).length);
+    assert.ok((await page.textContent('#stepInfo')).startsWith(`${at + 1} / `));
     await page.click('#prevStep');
     await page.waitForSelector('#board g[data-square="e5"][data-piece="bn"]');
+    // ◀로 장면 앞(원래 흐름)으로 거슬러 갈 수 있다
+    await page.click('#prevStep');
+    await page.waitForSelector('#board g[data-square="c8"][data-piece="bb"], #board g[data-square="e6"][data-piece="bb"]');
+    // 원래 vs 이번: 14수에서 갈렸다
+    await page.click('#tabs [data-view="orig"]');
+    const origLine = (await page.innerText('#lineText')).replace(/\s+/g, ' ');
+    console.log('원래:', origLine);
+    assert.match(origLine, /여기서 갈림\s*14\.\.\.\s*Qd7/);
     // 찾았으니 '둔 수' 탭은 없다
     assert.ok(await page.isHidden('#tabs [data-view="bad"]'));
     await page.click('#tabs [data-view="end"]');
