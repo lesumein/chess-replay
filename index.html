@@ -238,6 +238,8 @@
   .line span.pre.now { opacity: 1; }
   .line .sep { display: inline-block; font-size: .68rem; font-weight: 700; letter-spacing: .05em; color: var(--brand); border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; margin: 0 4px 0 2px; vertical-align: 1px; line-height: 1.6; }
   #play.comparing .board-wrap, #play.comparing .player, #play.comparing .history { display: none; }
+  .cmp-sum { font-size: .9rem; margin-bottom: 8px; }
+  .cmp-sum small { display: block; color: var(--faint); font-size: .74rem; }
   .cmp-boards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .cmp-boards figure { margin: 0; }
   .cmp-boards figcaption { display: flex; justify-content: space-between; align-items: center; min-height: 30px; font-size: .85rem; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
@@ -401,6 +403,7 @@
       </div>
       <div class="line" id="lineText"></div>
       <div class="cmp" id="cmpPanel" hidden>
+        <div class="cmp-sum" id="cmpSum" hidden></div>
         <div class="cmp-boards">
           <figure><figcaption><span class="pick" id="cmpLeftPick"><button type="button" data-src="orig">원래</button><button type="button" data-src="good">좋은 수</button></span><b id="cmpOrigScore"></b></figcaption><div class="mini" id="cmpOrig"></div></figure>
           <figure><figcaption>이번 <b id="cmpMineScore"></b></figcaption><div class="mini" id="cmpMine"></div></figure>

@@ -145,6 +145,14 @@ async function anyMove(page) {
     const split = (await page.innerText('#cmpMoves tr.split')).replace(/\s+/g, ' ');
     console.log('갈림:', split, '·', await page.textContent('#stepInfo'), '·', await page.textContent('#cmpOrigScore'), await page.textContent('#cmpMineScore'));
     assert.match(split, /^14\.\.\. Qd7\s*[+−]?\d+\.\d Nxf3\+\s*[+−]?\d+\.\d Nxf3\+\s*[+−]?\d+\.\d$/);
+    // 판 위 숫자는 여기까지 잃은 점수의 합. 마지막 수에서 둘의 차가 결과의 '원래 대비'와 같다
+    const headline = (await page.textContent('#reviewGain')).replace('원래 대비 ', '');
+    const total = Number((await page.textContent('#stepCount')).split(' / ')[1]);
+    for (let i = 0; i < total; i++) if (!(await page.isDisabled('#nextStep'))) await page.click('#nextStep');
+    const sum = await page.textContent('#cmpSum b');
+    console.log('끝 합계:', sum, '결과:', headline, '·', await page.textContent('#cmpOrigScore'), await page.textContent('#cmpMineScore'));
+    assert.strictEqual(sum, headline);
+    await page.click('#tabs [data-view="cmp"]');
     // 좋은 수 갈래: 표에 세 번째 줄, 왼쪽 판을 좋은 수로 바꿔 볼 수 있다
     assert.match(await page.innerText('#cmpMoves thead'), /원래\s+이번\s+좋은 수/);
     await page.click('#cmpLeftPick [data-src="good"]');

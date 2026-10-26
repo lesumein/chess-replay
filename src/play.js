@@ -89,6 +89,8 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal, clo
     mine: await withScores(engine, scene, end.steps),
     // 좋은 수 갈래: 장면까지는 원래 흐름, 장면부터 좋은 수
     good: rev.lines.good ? await withScores(engine, scene, [...rev.prefix, ...rev.lines.good]) : null,
+    // 내 수마다 잃은 점수(결과의 '원래 대비'와 같은 계산). 좋은 수 갈래는 장면까지 원래와 같고 그 뒤로는 0
+    loss: { ...check.losses, good: rev.lines.good ? check.losses.orig.slice(0, rev.prefix.length) : null },
   };
   return { ...result, compare: check.compare, review: rev, end, cmp };
 }
@@ -151,14 +153,14 @@ async function checkGame(scene, engine, history, played, atScene) {
     origEvals.push(legal.length ? await engine.evaluate(origFen, CHECK_DEPTH) : { score: { type: r.check ? 'mate' : 'cp', value: 0 } });
   }
   // 내 수마다 최선 대비 잃은 점수(한 수 최대 10폰)를 더한다. 상대(봇) 수는 빼고 내 판단만.
-  const lossSum = (ev, count) => {
-    let sum = 0;
-    for (let k = 0; k < count; k++) {
-      if ((scene.startPly + k) % 2 !== side) continue;
-      sum += Math.min(MAX_LOSS, Math.max(0, cp(ev[k].score) + cp(ev[k + 1].score)));
-    }
-    return sum;
-  };
+  // 수마다 잃은 점수(상대 수는 null). 비교 탭에서 수를 넘길 때 여기까지의 합을 보여 준다
+  const losses = (ev, count) => Array.from({ length: count }, (_, k) => ((scene.startPly + k) % 2 !== side
+    ? null
+    // 0.1폰 단위로 맞춰 두어, 화면에 보이는 합들이 서로 정확히 맞게
+    : Math.round(Math.min(MAX_LOSS, Math.max(0, cp(ev[k].score) + cp(ev[k + 1].score))) / 10) * 10));
+  const sum = (list) => list.reduce((a, x) => a + (x ?? 0), 0);
+  const origLoss = losses(origEvals, m);
+  const mineLoss = losses(evals, n);
 
   let issue = null;
   for (let k = 0; k < n && !issue; k++) {
@@ -172,7 +174,7 @@ async function checkGame(scene, engine, history, played, atScene) {
       issue = { moveNo: Math.floor(ply / 2) + 1, bestSan: await sanOf(engine, history[k].fen, evals[k].legal, best), kind: before >= 200 ? 'missed' : 'blunder' };
     }
   }
-  return { compare: { loss: true, orig: lossSum(origEvals, m), now: lossSum(evals, m) }, issue };
+  return { compare: { loss: true, orig: sum(origLoss), now: sum(mineLoss.slice(0, m)) }, losses: { orig: origLoss, mine: mineLoss }, issue };
 }
 
 function waitForMove(ui, fen, legal, last, clockMs, onTick, signal) {

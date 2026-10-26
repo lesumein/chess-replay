@@ -544,8 +544,22 @@ function showReview(scene, review, end, cmp) {
     const [o, m] = [at(leftLine), at(mine)];
     cmpBoards[0].set(o.fen, [], o.uci);
     cmpBoards[1].set(m.fen, [], m.uci);
-    $('cmpOrigScore').textContent = o.cp != null ? pawns(o.cp) : '';
-    $('cmpMineScore').textContent = m.cp != null ? pawns(m.cp) : '';
+    // 판 위 숫자: 여기까지 내 수가 잃은 점수의 합(결과의 '원래 대비'와 같은 계산). 마지막 수에서 둘의 차가 '원래 대비'
+    const loss = cmp?.loss;
+    if (loss) {
+      const upto = (list, k) => (list ?? []).slice(0, k).reduce((a, x) => a + (x ?? 0), 0);
+      const lost = (x) => (x ? `−${(x / 100).toFixed(1)}` : '0.0');
+      const leftLoss = leftSrc === 'good' && loss.good ? loss.good : loss.orig;
+      $('cmpOrigScore').textContent = lost(upto(leftLoss, step));
+      $('cmpMineScore').textContent = lost(upto(loss.mine, step));
+      const k = Math.min(step, loss.orig.length);
+      const d = upto(loss.orig, k) - upto(loss.mine, k);
+      $('cmpSum').innerHTML = `여기까지 원래 대비 <b class="gain ${gainClass(d)}">${signed(d)}</b> <small>판 위 숫자: 내 수가 잃은 점수의 합</small>`;
+    } else {
+      $('cmpOrigScore').textContent = o.cp != null ? pawns(o.cp) : '';
+      $('cmpMineScore').textContent = m.cp != null ? pawns(m.cp) : '';
+    }
+    $('cmpSum').hidden = !loss;
     for (const b of document.querySelectorAll('#cmpLeftPick button')) {
       b.setAttribute('aria-pressed', String(b.dataset.src === leftSrc));
       b.hidden = b.dataset.src === 'good' && !good;
