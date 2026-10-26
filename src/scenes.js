@@ -68,6 +68,9 @@ function base(game, positions, i, side) {
     line: positions.slice(start, end).map((p) => p.uci),
     playedSan: positions[i].san,
     origSpent: positions[i].spent,
+    // 원래 게임 시계: 시작한 순간 내게 남아 있던 시간(초)과 수당 추가시간
+    tc: game.tc ?? null,
+    clockAtStart: game.tc ? (start >= 2 ? positions[start - 2].clock : game.tc.base) ?? null : null,
   };
 }
 

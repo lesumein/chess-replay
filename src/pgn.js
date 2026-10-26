@@ -90,3 +90,9 @@ export function uciToSan(uci, fen, legal, check, mate) {
   }
   return san + (mate ? '#' : check ? '+' : '');
 }
+
+// 시간 설정 "300+5" → { base: 300, inc: 5 }. 데일리("1/86400")나 없으면 null
+export function parseTimeControl(tc = '') {
+  const m = /^(\d+)(?:\+(\d+))?$/.exec(tc.trim());
+  return m ? { base: Number(m[1]), inc: Number(m[2] ?? 0) } : null;
+}

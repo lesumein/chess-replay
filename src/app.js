@@ -1,6 +1,6 @@
 import { Engine } from './engine.js';
 import { Board } from './board.js';
-import { playScene } from './play.js';
+import { playScene, clockFor } from './play.js';
 import { analyzeMore, analyzeGame, findSharedGame, isMine, sideCounts } from './library.js';
 import { material } from './material.js';
 import * as store from './store.js';
@@ -132,7 +132,8 @@ function gameLabel(scene) {
   const days = Math.floor((Date.now() / 1000 - scene.endTime) / 86400);
   const when = days <= 0 ? '오늘' : days === 1 ? '어제' : days < 14 ? `${days}일 전` : days < 60 ? `${Math.floor(days / 7)}주 전` : `${Math.floor(days / 30)}달 전`;
   const result = scene.me.result ? (RESULT[scene.me.result] ?? '비긴 판') : null;
-  return [when, TIME_CLASS[scene.timeClass] ?? scene.timeClass, result].filter(Boolean).join(' · ');
+  const tc = scene.tc ? ` ${scene.tc.base % 60 ? `${scene.tc.base}초` : scene.tc.base / 60}+${scene.tc.inc}` : '';
+  return [when, (TIME_CLASS[scene.timeClass] ?? scene.timeClass) + tc, result].filter(Boolean).join(' · ');
 }
 
 const OUTCOME = {
@@ -245,6 +246,10 @@ async function startScene() {
   playEngine ??= new Engine(ENGINE_URL);
   await playEngine.init();
   $('history').hidden = false;
+  const mode = clockMode();
+  const { inc } = clockFor(scene, mode);
+  $('clockInc').textContent = inc ? `+${inc / 1000}초` : '';
+  $('clockInc').hidden = !inc;
   let skip = false;
   $('board').onclick = () => { skip = true; };
   const result = await playScene(scene, playEngine, {
@@ -257,6 +262,7 @@ async function startScene() {
   }, {
     botDelay: params.has('fast') ? 0 : 600,
     signal: mine.signal,
+    clockMode: mode,
   });
   if (!result) return;
   $('history').hidden = true;
@@ -440,6 +446,7 @@ function updateHistoryButtons() {
 // ---- 설정 ----
 async function openSettings() {
   $('userEdit').value = user;
+  for (const r of document.querySelectorAll('input[name=clockMode]')) r.checked = r.value === clockMode();
   $('aliasEdit').value = aliases().join(', ');
   $('installBox').hidden = !installPrompt;
   const est = await navigator.storage?.estimate?.().catch(() => null);
@@ -471,6 +478,11 @@ function saveAliases(list) {
   return clean;
 }
 const myNames = () => [user, ...aliases()];
+
+// 시계: 'app'(내 수 하나에 20초꼴) | 'original'(원래 게임에서 그때 남은 시간 + 수당 추가시간)
+function clockMode() {
+  try { return localStorage.getItem('clockMode') || 'app'; } catch { return 'app'; }
+}
 
 // 남의 게임: 어느 쪽으로 둘지 고른다. counts: 쪽마다 장면 후보 수, hint: 링크가 가리킨 쪽(0|1|null)
 // 돌려주는 값: { side: 0 | 1, mine: 이 이름이 내 아이디인지 } | null(취소)
@@ -577,6 +589,11 @@ $('userForm').addEventListener('submit', async (e) => {
   $('settings').close();
   await switchUser(name);
 });
+for (const r of document.querySelectorAll('input[name=clockMode]')) {
+  r.addEventListener('change', () => {
+    try { localStorage.setItem('clockMode', r.value); } catch {}
+  });
+}
 $('aliasForm').addEventListener('submit', (e) => {
   e.preventDefault();
   $('aliasEdit').value = saveAliases($('aliasEdit').value.split(/[,\s]+/)).join(', ');

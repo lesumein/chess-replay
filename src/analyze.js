@@ -9,7 +9,7 @@ export async function replay(engine, moves, startFen = START_FEN) {
     const legal = await engine.legalMoves(fen);
     const uci = sanToUci(mv.san, fen, legal);
     if (!uci) throw new Error(`수를 읽지 못했어요: ${mv.san}`);
-    positions.push({ fen, check, legal, uci, san: mv.san, spent: mv.spent });
+    positions.push({ fen, check, legal, uci, san: mv.san, spent: mv.spent, clock: mv.clock });
     ({ fen, check } = await engine.play(fen, uci));
   }
   positions.push({ fen, check, legal: await engine.legalMoves(fen) });

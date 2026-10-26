@@ -11,15 +11,24 @@ const PREROLL_MS = 450; // 원래 게임 앞 수순을 보여 주는 속도
 
 // ui: { board, clock(ms), turn('me' | 'opp' | null), history(positions), preroll(on), skipPreroll() }
 // signal로 중간에 그만두면 null을 돌려준다.
-export async function playScene(scene, engine, ui, { botDelay = 600, signal } = {}) {
+// clockMode: 'app'(내 수 하나에 20초꼴) | 'original'(원래 게임에서 그때 남은 시간 + 수당 추가시간)
+export function clockFor(scene, clockMode) {
+  const myMoves = (scene.ply - scene.startPly) / 2 + 1 + AFTER;
+  if (clockMode === 'original' && scene.clockAtStart != null && scene.tc) {
+    return { start: scene.clockAtStart * 1000, inc: scene.tc.inc * 1000 };
+  }
+  return { start: SECONDS_PER_MOVE * 1000 * myMoves, inc: 0 };
+}
+
+export async function playScene(scene, engine, ui, { botDelay = 600, signal, clockMode = 'app' } = {}) {
   const side = scene.side;
   const endPly = scene.ply + 2 * AFTER;
   let fen = scene.startFen;
   let ply = scene.startPly;
   let last = scene.preLine?.at(-1) ?? null;
   let onLine = true;
-  const myMoves = (scene.ply - scene.startPly) / 2 + 1 + AFTER;
-  let clock = SECONDS_PER_MOVE * 1000 * myMoves;
+  const { start: clockStart, inc } = clockFor(scene, clockMode);
+  let clock = clockStart;
   let atScene = null; // { fen, legal, uci, ms }
   let timedOut = false;
   const history = [{ fen, last }]; // 이번에 지나온 포지션들(되돌려 보기용)
@@ -45,7 +54,7 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal } = 
         ui.clock(0);
         break;
       }
-      clock -= ms;
+      clock += inc - ms; // 둔 뒤 수당 추가시간
       ui.clock(clock);
       if (ply === scene.ply && onLine) atScene = { fen, legal, uci, ms };
       if (onLine && uci !== scene.line[ply - scene.startPly]) onLine = false;

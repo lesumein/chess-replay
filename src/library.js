@@ -1,6 +1,6 @@
 // Chess.com 공개 API에서 끝난 게임을 가져와 쌓고, 한 판씩 분석해 장면을 만든다.
 // 아카이브에는 끝난 게임만 있다. 진행 중인 게임은 가져오지 않는다.
-import { parsePgn, addTimeSpent } from './pgn.js';
+import { parsePgn, addTimeSpent, parseTimeControl } from './pgn.js';
 import { replay, evaluateAll, classify } from './analyze.js';
 import { buildScenes } from './scenes.js';
 import * as store from './store.js';
@@ -55,7 +55,7 @@ async function prepareGame(engine, g) {
   addTimeSpent(moves, headers.TimeControl);
   const positions = await replay(engine, moves);
   const { evals } = await evaluateAll(engine, positions, SCAN_DEPTH);
-  const p = { positions, evals };
+  const p = { positions, evals, tc: parseTimeControl(headers.TimeControl) };
   prepared.set(g.url, p);
   return p;
 }
@@ -76,7 +76,7 @@ export async function analyzeGame(engine, g, names, onScene = () => {}) {
     await store.put('games', { ...g, status: 'skipped' });
     return [];
   }
-  const { positions, evals } = p;
+  const { positions, evals, tc } = p;
   prepared.delete(g.url);
   // 남의 게임은 고른 쪽(g.side), 내 게임은 내 쪽
   const side = g.side ?? (sameName(g.white.username, names) ? 0 : 1);
@@ -85,6 +85,7 @@ export async function analyzeGame(engine, g, names, onScene = () => {}) {
     url: g.url,
     endTime: g.endTime,
     timeClass: g.timeClass,
+    tc,
     me: { name: me.username, rating: me.rating, result: me.result },
     opp: { name: opp.username, rating: opp.rating },
   };
