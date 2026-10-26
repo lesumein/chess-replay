@@ -184,6 +184,7 @@ async function renderHome() {
 async function goHome() {
   if (updateReady) return location.reload();
   session?.abort();
+  closeCompare();
   board?.destroy();
   board = null;
   show('home');
@@ -220,6 +221,7 @@ function showMaterial(fen, meColor, oppColor) {
 
 async function startScene() {
   session?.abort();
+  closeCompare();
   const mine = (session = new AbortController());
   const scene = replayScene ?? (await nextScene());
   replayScene = null;
@@ -285,7 +287,7 @@ function showResult(scene, result) {
   }
   $('compare').hidden = !c;
 
-  showReview(scene, result.review, result.end);
+  showReview(scene, result.review, result.end, result.cmp);
   $('resultLink').href = `${scene.gameUrl}?move=${scene.ply + 1}`;
   $('result').hidden = false;
   $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -294,67 +296,116 @@ function showResult(scene, result) {
 // 결과 아래에서 수순을 한 수씩 넘겨 본다.
 // 좋은 수: 장면에서 좋은 수부터 이득이 확정될 때까지 / 둔 수: 내가(또는 원래 게임에서) 둔 수와 상대의 응수
 // 끝난 판: 이번에 둔 수를 시작부터 끝까지
-function showReview(scene, review, end) {
+let cmpBoards = null; // 비교 탭의 작은 판 두 개(원래, 이번)
+
+function closeCompare() {
+  $('play').classList.remove('comparing');
+  cmpBoards?.forEach((b) => b.destroy());
+  cmpBoards = null;
+}
+
+function showReview(scene, review, end, cmp) {
   const start = { fen: review.startFen, last: review.startLast, startPly: scene.startPly };
   const pre = review.prefix;
   // 원래 게임과 이번 판이 처음 갈라진 수
-  const orig = review.lines.orig ?? [];
-  let split = end.steps.findIndex((m, k) => orig[k]?.uci !== m.uci);
+  const orig = cmp?.orig ?? review.lines.orig ?? [];
+  const mine = cmp?.mine ?? end.steps;
+  let split = mine.findIndex((m, k) => orig[k]?.uci !== m.uci);
   if (split < 0) split = null;
+  const total = Math.max(orig.length, mine.length);
   const views = {
     good: review.lines.good && { ...start, steps: [...pre, ...review.lines.good], pre: pre.length, arrow: 'good', first: pre.length },
     bad: review.lines.bad && { ...start, steps: [...pre, ...review.lines.bad], pre: pre.length, arrow: 'bad', first: pre.length },
-    orig: review.lines.orig && { ...start, steps: orig, split, first: split ?? orig.length },
-    end: { ...end, split, first: end.steps.length },
+    // 비교는 갈린 수를 둔 뒤부터(안 갈렸으면 끝 모습)
+    cmp: { ...start, steps: { length: total }, first: split != null ? split + 1 : total },
   };
   const tabs = [...$('tabs').querySelectorAll('button')];
   for (const t of tabs) t.hidden = !views[t.dataset.view];
-  let view = views.good ? 'good' : views.bad ? 'bad' : 'end';
+  let view = views.good ? 'good' : views.bad ? 'bad' : 'cmp';
   let step = views[view].first; // 0 = 시작한 판, k = k수 둔 뒤
 
-  // 수 번호: 백 수마다, 흑 수는 줄 첫머리나 표시(장면·갈림) 바로 뒤에서만
+  // 수 번호: 백 수마다, 흑 수는 줄 첫머리나 표시(장면) 바로 뒤에서만
   const label = (startPly, k, marked) => {
     const ply = startPly + k;
     const n = Math.floor(ply / 2) + 1;
     if (ply % 2 === 0) return `<i>${n}.</i>`;
     return k === 0 || marked ? `<i>${n}...</i>` : '';
   };
+  const moveNo = (k) => {
+    const ply = scene.startPly + k;
+    return `${Math.floor(ply / 2) + 1}${ply % 2 ? '...' : '.'}`;
+  };
 
-  function draw() {
-    tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.view === view)));
+  function drawLine() {
     const v = views[view];
     const line = v.steps;
     const fen = step ? line[step - 1].fen : v.fen;
     const last = step ? line[step - 1].uci : v.last;
     const next = line[step];
     // 좋은 수·둔 수는 장면부터 다음에 둘 수를 화살표로
-    const arrow = v.arrow && next && step >= v.pre ? [{ uci: next.uci, kind: v.arrow }] : [];
+    const arrow = next && step >= v.pre ? [{ uci: next.uci, kind: v.arrow }] : [];
     board.set(fen, [], last, arrow);
     $('lineText').innerHTML = line.map((m, k) => {
-      const cls = [k < step - 1 ? 'done' : k === step - 1 ? 'now' : '', k < (v.pre ?? 0) ? 'pre' : '', k === v.split ? 'split' : ''].filter(Boolean).join(' ');
-      // 원래 흐름과 장면 이후 사이, 갈라진 곳 앞에 표시
-      const mark = k === v.pre && k > 0 ? '<b class="sep">장면</b>' : k === v.split ? '<b class="sep">여기서 갈림</b>' : '';
+      const cls = [k < step - 1 ? 'done' : k === step - 1 ? 'now' : '', k < v.pre ? 'pre' : ''].filter(Boolean).join(' ');
+      const mark = k === v.pre && k > 0 ? '<b class="sep">장면</b>' : '';
       return `${mark}${label(v.startPly, k, !!mark)}<span class="${cls}" data-step="${k + 1}">${esc(m.san)}</span>`;
     }).join(' ');
-    $('stepInfo').textContent = `${step} / ${line.length}`;
+  }
+
+  // 원래와 이번을 같은 수 번호로: 작은 판 두 개 + 수순 표
+  function drawCompare() {
+    if (!cmpBoards) {
+      const bottom = scene.side ? 'b' : 'w';
+      cmpBoards = [new Board($('cmpOrig'), { bottom }), new Board($('cmpMine'), { bottom })];
+    }
+    const at = (line) => {
+      const k = Math.min(step, line.length);
+      return k ? line[k - 1] : { fen: start.fen, uci: start.last, cp: null };
+    };
+    const [o, m] = [at(orig), at(mine)];
+    cmpBoards[0].set(o.fen, [], o.uci);
+    cmpBoards[1].set(m.fen, [], m.uci);
+    $('cmpOrigScore').textContent = o.cp != null ? pawns(o.cp) : '';
+    $('cmpMineScore').textContent = m.cp != null ? pawns(m.cp) : '';
+    const rows = [];
+    for (let k = 0; k < total; k++) {
+      const cell = (x) => (x ? `${esc(x.san)}<small>${x.cp != null ? pawns(x.cp) : ''}</small>` : '');
+      const cls = [k === step - 1 ? 'now' : '', split != null && k >= split ? 'diff' : '', k === split ? 'split' : ''].filter(Boolean).join(' ');
+      rows.push(`<tr class="${cls}" data-step="${k + 1}"><td class="n">${moveNo(k)}</td><td class="m">${cell(orig[k])}</td><td class="m">${cell(mine[k])}</td></tr>`);
+    }
+    $('cmpMoves').innerHTML = `<table><thead><tr><th></th><th>원래</th><th>이번</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    $('cmpMoves').querySelector('tr.now')?.scrollIntoView({ block: 'nearest' });
+  }
+
+  function draw() {
+    tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.view === view)));
+    const comparing = view === 'cmp';
+    $('play').classList.toggle('comparing', comparing);
+    $('cmpPanel').hidden = !comparing;
+    $('lineText').hidden = comparing;
+    if (comparing) drawCompare();
+    else drawLine();
+    const len = views[view].steps.length;
+    $('stepInfo').textContent = comparing ? (step ? moveNo(step - 1) : '시작') : `${step} / ${len}`;
     $('prevStep').disabled = step === 0;
-    $('nextStep').disabled = step === line.length;
+    $('nextStep').disabled = step === len;
   }
 
   for (const t of tabs) {
     t.onclick = () => {
       view = t.dataset.view;
-      // 좋은 수·둔 수는 장면부터, 원래는 갈라진 곳부터, 이번은 끝 모습부터
       step = views[view].first;
       draw();
     };
   }
   $('prevStep').onclick = () => { step = Math.max(0, step - 1); draw(); };
   $('nextStep').onclick = () => { step = Math.min(views[view].steps.length, step + 1); draw(); };
-  $('lineText').onclick = (e) => {
+  const jump = (e) => {
     const k = e.target.closest('[data-step]')?.dataset.step;
     if (k) { step = Number(k); draw(); }
   };
+  $('lineText').onclick = jump;
+  $('cmpMoves').onclick = jump;
   draw();
 }
 

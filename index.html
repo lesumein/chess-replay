@@ -166,6 +166,21 @@
   .line span.pre { opacity: .55; }
   .line span.pre.now { opacity: 1; }
   .line .sep { display: inline-block; font-size: .7rem; font-weight: 650; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 0 5px; margin: 0 4px 0 2px; vertical-align: 1px; }
+  #play.comparing .board-wrap, #play.comparing .player, #play.comparing .history { display: none; }
+  .cmp-boards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .cmp-boards figure { margin: 0; }
+  .cmp-boards figcaption { display: flex; justify-content: space-between; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+  .cmp-boards figcaption b { font-variant-numeric: tabular-nums; color: var(--fg); }
+  .mini { width: 100%; aspect-ratio: 1; border-radius: 4px; overflow: hidden; }
+  .cmp-moves { margin-top: 10px; max-height: 210px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
+  .cmp-moves table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  .cmp-moves th { position: sticky; top: 0; background: var(--card); color: var(--muted); font-weight: 600; font-size: .78rem; text-align: left; padding: 6px 8px; }
+  .cmp-moves td { padding: 5px 8px; border-top: 1px solid var(--line); cursor: pointer; }
+  .cmp-moves td.n { color: var(--faint); width: 3.5em; font-variant-numeric: tabular-nums; }
+  .cmp-moves td small { color: var(--faint); margin-left: 6px; font-variant-numeric: tabular-nums; }
+  .cmp-moves tr.now td { background: var(--accent-soft); }
+  .cmp-moves tr.diff td.m { color: var(--warn); }
+  .cmp-moves tr.split td.n::after { content: '갈림'; display: block; font-size: .65rem; color: var(--warn); font-weight: 650; }
   .line span.split { text-decoration: underline; text-decoration-color: var(--warn); text-underline-offset: 3px; }
   .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
   .stepper .icon-btn { width: 56px; background: var(--bg); border: 1px solid var(--line); color: var(--fg); }
@@ -267,10 +282,16 @@
         <div class="tabs" id="tabs" role="tablist">
           <button type="button" data-view="good" role="tab"><span class="key good"></span>좋은 수</button>
           <button type="button" data-view="bad" role="tab"><span class="key bad"></span>둔 수</button>
-          <button type="button" data-view="orig" role="tab">원래</button>
-          <button type="button" data-view="end" role="tab">이번</button>
+          <button type="button" data-view="cmp" role="tab">원래 vs 이번</button>
         </div>
         <div class="line" id="lineText"></div>
+        <div class="cmp" id="cmpPanel" hidden>
+          <div class="cmp-boards">
+            <figure><figcaption>원래 <b id="cmpOrigScore"></b></figcaption><div class="mini" id="cmpOrig"></div></figure>
+            <figure><figcaption>이번 <b id="cmpMineScore"></b></figcaption><div class="mini" id="cmpMine"></div></figure>
+          </div>
+          <div class="cmp-moves" id="cmpMoves"></div>
+        </div>
         <div class="stepper" id="stepper">
           <button class="icon-btn" id="prevStep" type="button" aria-label="이전 수"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
           <span class="small muted" id="stepInfo"></span>

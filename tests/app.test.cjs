@@ -112,20 +112,21 @@ async function anyMove(page) {
     // ◀로 장면 앞(원래 흐름)으로 거슬러 갈 수 있다
     await page.click('#prevStep');
     await page.waitForSelector('#board g[data-square="c8"][data-piece="bb"], #board g[data-square="e6"][data-piece="bb"]');
-    // 원래 vs 이번: 14수에서 갈렸다
-    await page.click('#tabs [data-view="orig"]');
-    const origLine = (await page.innerText('#lineText')).replace(/\s+/g, ' ');
-    console.log('원래:', origLine);
-    assert.match(origLine, /여기서 갈림\s*14\.\.\.\s*Qd7/);
+    // 원래 vs 이번: 작은 판 두 개와 수순 표, 14수에서 갈렸다
+    await page.click('#tabs [data-view="cmp"]');
+    await page.waitForSelector('#cmpPanel:not([hidden])');
+    assert.ok(await page.isHidden('#board'), '비교할 때는 큰 판을 숨긴다');
+    await page.waitForSelector('#cmpOrig g[data-square="d7"][data-piece="bq"]');
+    await page.waitForSelector('#cmpMine g[data-square="f3"][data-piece="bn"]');
+    const split = (await page.innerText('#cmpMoves tr.split')).replace(/\s+/g, ' ');
+    console.log('갈림:', split, '·', await page.textContent('#stepInfo'), '·', await page.textContent('#cmpOrigScore'), await page.textContent('#cmpMineScore'));
+    assert.match(split, /^14\.\.\. Qd7\s*[+−]?\d+\.\d Nxf3\+\s*[+−]?\d+\.\d$/);
+    await page.click('#nextStep');
+    assert.strictEqual(await page.textContent('#stepInfo'), '15.');
+    await page.click('#tabs [data-view="good"]');
+    await page.waitForSelector('#board:not([hidden])');
     // 찾았으니 '둔 수' 탭은 없다
     assert.ok(await page.isHidden('#tabs [data-view="bad"]'));
-    await page.click('#tabs [data-view="end"]');
-    await page.waitForFunction(() => !document.querySelector('#board .arrow-success'));
-    // 끝난 판: 이번에 둔 수를 시작부터 넘겨 볼 수 있다
-    assert.match(await page.innerText('#lineText'), /^1[0-2]\.\.\.\s*(Nge5|d3|Na5) 1[1-3]\./);
-    assert.ok(await page.isDisabled('#nextStep'));
-    await page.click('#prevStep');
-    assert.ok(await page.isEnabled('#nextStep'));
     assert.ok(await page.isHidden('#history'));
     // 빈 줄이 있어도 칸이 정사각형
     const sizes = await page.$$eval('#board rect[data-square]', (els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));

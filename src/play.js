@@ -73,7 +73,29 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal } = 
   const end = { fen: scene.startFen, last: history[0].last, startPly: scene.startPly, steps: await walkLine(engine, scene.startFen, played) };
   const check = await checkGame(scene, engine, history, played, atScene);
   if (result.outcome === 'deviated') result.text = describe(scene, 'deviated', '', check.issue);
-  return { ...result, compare: check.compare, review: await review(scene, engine, atScene, result.outcome, badLine), end };
+  const rev = await review(scene, engine, atScene, result.outcome, badLine);
+  // 비교 탭: 원래와 이번을 같은 수 번호로 나란히, 수마다 형세(내 쪽 점수)
+  const cmp = {
+    orig: await withScores(engine, scene, rev.lines.orig ?? []),
+    mine: await withScores(engine, scene, end.steps),
+  };
+  return { ...result, compare: check.compare, review: rev, end, cmp };
+}
+
+const SCORE_DEPTH = 10;
+
+// 수순의 각 포지션에 내 쪽에서 본 점수(cp)를 붙인다
+async function withScores(engine, scene, steps) {
+  const out = [];
+  for (let k = 0; k < steps.length; k++) {
+    const ply = scene.startPly + k + 1; // 이 수를 둔 뒤 둘 차례인 반수
+    const legal = await engine.legalMoves(steps[k].fen);
+    const score = legal.length
+      ? (await engine.evaluate(steps[k].fen, SCORE_DEPTH)).score
+      : { type: steps[k].san.endsWith('#') ? 'mate' : 'cp', value: 0 };
+    out.push({ ...steps[k], cp: ply % 2 === scene.side ? cp(score) : -cp(score) });
+  }
+  return out;
 }
 
 // 시작 전에 원래 게임의 앞 수순을 빠르게 다시 보여 준다(오래된 게임도 흐름이 떠오르게). 탭하면 건너뛴다.
