@@ -203,3 +203,26 @@ function gameFromPgn(pgn) {
 
 // 내가 둔 게임인지(아니면 어느 쪽으로 둘지 골라야 한다). names: 내 아이디들
 export const isMine = (g, names) => sameName(g.white.username, names) || sameName(g.black.username, names);
+
+// 예전에 만든 장면에 원래 게임 시계(시간 설정, 시작 때 남은 시간)와 이긴/진 판을 채운다.
+// 기보만 다시 읽으면 돼서 엔진을 쓰지 않는다. 돌려주는 값: 채운 장면 수
+export async function backfillScenes() {
+  const old = (await store.getAll('scenes')).filter((s) => s.tc === undefined);
+  if (!old.length) return 0;
+  const games = new Map((await store.getAll('games')).map((g) => [g.url, g]));
+  const filled = [];
+  for (const s of old) {
+    const g = games.get(s.gameUrl);
+    let tc = null;
+    let clockAtStart = null;
+    if (g?.pgn) {
+      const { headers, moves } = parsePgn(g.pgn);
+      tc = parseTimeControl(headers.TimeControl);
+      if (tc) clockAtStart = s.startPly >= 2 ? moves[s.startPly - 2]?.clock ?? null : tc.base;
+    }
+    const me = g ? (s.side ? g.black : g.white) : null;
+    filled.push({ ...s, tc, clockAtStart, me: { ...s.me, result: s.me.result ?? me?.result } });
+  }
+  await store.putMany('scenes', filled);
+  return filled.length;
+}

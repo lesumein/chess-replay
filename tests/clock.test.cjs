@@ -36,6 +36,19 @@ const secs = (t) => { const [m, s] = t.split(':').map(Number); return m * 60 + s
     }, before, { timeout: 10_000 });
     console.log('시계', before, '초 → 한 수 뒤', await page.textContent('#clock'));
 
+    // 예전 장면(시계 정보 없음)도 다시 열면 채워져 원래 시계로 둔다
+    await page.evaluate(async () => {
+      const store = await import('./src/store.js');
+      const all = await store.getAll('scenes');
+      await store.putMany('scenes', all.map(({ tc, clockAtStart, ...rest }) => rest));
+    });
+    await page.goto(base);
+    await page.waitForSelector('#board[data-active="true"]', { timeout: 120_000 });
+    assert.strictEqual(await page.textContent('#clockInc'), '+5초');
+    const again = await page.evaluate(async () => (await (await import('./src/store.js')).getAll('scenes')).find((x) => x.ply === 27));
+    assert.strictEqual(again.clockAtStart, scene.clockAtStart);
+    console.log('예전 장면 채움 → 시작 때 남은 시간', again.clockAtStart, '초');
+
     // 앱 시계로 바꾸면 추가시간 없음
     await page.evaluate(() => localStorage.setItem('clockMode', 'app'));
     await page.goto(base);

@@ -1,7 +1,7 @@
 import { Engine } from './engine.js';
 import { Board } from './board.js';
 import { playScene, clockFor } from './play.js';
-import { analyzeMore, analyzeGame, findSharedGame, isMine, sideCounts } from './library.js';
+import { analyzeMore, analyzeGame, findSharedGame, isMine, sideCounts, backfillScenes } from './library.js';
 import { material } from './material.js';
 import * as store from './store.js';
 
@@ -665,6 +665,8 @@ function takeShared() {
 window.addEventListener('shared', () => openShared(takeShared()));
 
 (async () => {
+  // 예전 장면에 원래 게임 시계 정보 채우기(기보만 읽어서 금방 끝난다)
+  await backfillScenes().catch(() => {});
   const shared = takeShared();
   if (shared) {
     if (user) await recordDay();
