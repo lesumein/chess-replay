@@ -170,8 +170,9 @@ async function addToSet(scene, result) {
   return set;
 }
 
-function dotsHtml(set, withNext) {
-  const items = setDone(set) ? [] : set.items;
+// keep: 끝난 세트도 칸을 채워 보여 준다(마지막 장면의 결과 화면)
+function dotsHtml(set, withNext, keep = false) {
+  const items = !set || (setDone(set) && !keep) ? [] : set.items;
   return Array.from({ length: SET_SIZE }, (_, i) => {
     const it = items[i];
     const cls = it ? (outcomeOf(it.outcome).good ? 'good' : 'bad') : withNext && i === items.length ? 'now' : '';
@@ -189,7 +190,6 @@ function streakOf(results) {
   while (days.has(localDay(d))) { n++; d.setDate(d.getDate() - 1); }
   return n;
 }
-const FLAME = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3.5 5 5.8 5 10.5A5 5 0 0 1 12 18a5 5 0 0 1-5-5.5c0-2 1-3.5 2-4.5.2 1.6 1 2.6 2 3 0-3 .5-6 1-9z"/></svg>';
 
 async function renderHome() {
   if ($('home').hidden) return;
@@ -207,13 +207,25 @@ async function renderHome() {
   const today = localDay(Date.now());
   const setsToday = ((await store.get('meta', 'setLog')) ?? []).filter((x) => localDay(x.at) === today).length;
 
-  // 세트 카드: 진행 중이면 이어서, 아니면 새 세트
+  // 세트 기보 용지: 둔 칸은 결과, 다음 칸은 표시, 나머지는 빈칸(앞으로 올 장면은 알려 주지 않는다)
   const going = !setDone(set) && set.items.length > 0;
-  $('setEyebrow').textContent = setsToday ? `오늘 ${setsToday}세트 완료` : '오늘의 세트';
-  $('setTitle').textContent = going ? `${set.items.length} / ${SET_SIZE} 진행 중` : setsToday ? '한 세트 더 해 볼까요?' : `${SET_SIZE}장면을 다시 둬요`;
-  $('setDots').innerHTML = dotsHtml(set, true);
+  const date = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
+  $('setEyebrow').textContent = setsToday ? `${date} · 오늘 ${setsToday}세트 완료` : date;
+  $('setTitle').textContent = going ? `다섯 장면 중 ${set.items.length}개를 뒀어요` : setsToday ? '한 세트 더 둘까요?' : '오늘의 다섯 장면';
+  const byScene = new Map(scenes.map((s) => [s.id, s]));
+  const items = going ? set.items : [];
+  $('setRows').innerHTML = Array.from({ length: SET_SIZE }, (_, i) => {
+    const it = items[i];
+    if (it) {
+      const s = byScene.get(it.sceneId);
+      const o = outcomeOf(it.outcome);
+      return `<li class="done"><span class="no">${i + 1}</span><span class="what"><span class="badge sm ${o.tone}">${o.icon}</span><span>${s ? `${esc(sceneName(s))} · ` : ''}${esc(s ? o.title(s) : '')}</span></span>${it.gain != null ? `<span class="gain ${gainClass(it.gain)}">${signed(it.gain)}</span>` : '<span></span>'}</li>`;
+    }
+    const next = i === items.length;
+    return `<li class="${next ? 'next' : ''}"><span class="no">${i + 1}</span><span class="what"><span class="${next ? '' : 'blank'}">${next ? '다음 장면' : '—'}</span></span><span></span></li>`;
+  }).join('');
   $('streak').hidden = !streak;
-  $('streak').innerHTML = `${FLAME}${streak}일 연속`;
+  $('streak').textContent = `${streak}일 연속`;
   $('remaining').innerHTML = `준비된 장면 <b>${remaining}</b>`;
   $('analyzed').innerHTML = analyzed ? `분석한 게임 <b>${analyzed}</b>` : '';
   $('closedNote').hidden = !madeWhileClosed;
@@ -333,7 +345,7 @@ async function startScene() {
   const { text, review, end, ...record } = result;
   await store.add('results', record);
   const set = await addToSet(scene, result);
-  $('setProgress').innerHTML = `<span class="dots sm">${dotsHtml(set, false)}</span>세트 ${set.items.length}/${SET_SIZE}`;
+  $('setProgress').innerHTML = `<span class="dots sm">${dotsHtml(set, false, true)}</span>세트 ${set.items.length}/${SET_SIZE}`;
   if (set.items.length === SET_SIZE) await logSet(set);
   showResult(scene, result, set);
 }
@@ -409,10 +421,6 @@ async function showSetDone(set) {
   $('doneCount').textContent = real.length ? `${found}/${real.length}` : `${set.items.filter((x) => x.outcome === 'found').length}/${set.items.length}`;
   $('doneCountLabel').textContent = real.length ? '찾은 장면' : '잘 넘긴 장면';
   const share = real.length ? found / real.length : 1;
-  const C = 2 * Math.PI * 52;
-  $('doneRing').style.strokeDasharray = `${C}`;
-  $('doneRing').style.strokeDashoffset = `${C}`;
-  requestAnimationFrame(() => requestAnimationFrame(() => { $('doneRing').style.strokeDashoffset = `${C * (1 - share)}`; }));
   $('doneTitle').textContent = share >= 0.8 ? '날카로웠어요' : share >= 0.5 ? '좋은 세트였어요' : '다음엔 더 보일 거예요';
   const fakes = set.items.length - real.length;
   $('doneSub').textContent = fakes ? `${SET_SIZE}장면 중 ${fakes}개는 아무것도 없던 장면이었어요` : `${SET_SIZE}장면 모두 실제로 놓쳤던 순간이었어요`;

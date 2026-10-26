@@ -11,6 +11,7 @@ const SHELL = [
   'src/material.js', 'src/pgn.js', 'src/play.js', 'src/scenes.js', 'src/store.js',
   'stockfish/stockfish-18-lite-single.js', 'stockfish/stockfish-18-lite-single.wasm',
   'icons/icon-192.png', 'icons/icon.svg',
+  'vendor/fonts/pretendard.woff2', 'vendor/fonts/gowun-batang-400.woff2', 'vendor/fonts/gowun-batang-700.woff2',
   // 판(cm-chessboard)
   'vendor/cm-chessboard/src/Chessboard.js',
   'vendor/cm-chessboard/src/extensions/accessibility/Accessibility.js',

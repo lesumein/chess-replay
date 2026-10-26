@@ -59,7 +59,7 @@ Chess.com에서 내가 놓친 장면을, "여기 뭔가 있다"는 신호 없이
 - 두는 동안 화면에는 상대·시계·판, 이름 아래 잡은 기물과 점수 우위(+N, 폰 1·나이트/비숍 3·룩 5·퀸 9). 결과의 수순을 넘길 때도 따라 바뀐다.
 - 두는 동안 ◀ ▶로 지난 수를 되돌려 볼 수 있다(시계는 계속 간다, 새 수가 오면 지금 판으로). 결과의 '끝난 판'은 이번에 둔 수를 처음부터 넘겨 본다.
 - 결과는 아래에서 올라오는 시트(판정, 한 줄, 원래 대비, 쓴 시간, [복기] [다음 장면]). 판은 위에 그대로 보이고 장면 포지션에 화살표. 복기를 누르면 시트가 내려가고 판 아래에 탭·수순·◀ ▶ 바가 나온다.
-- 화면 톤: 따뜻한 종이색 바탕에 짙은 녹색 강조, 큰 숫자와 분명한 글자 위계(밝은/어두운 테마). 방향 시안은 Gemini 이미지 모델로 두 갈래(게임 느낌/상용 앱 느낌)를 만들어 보고 상용 앱 쪽을 골랐다. 시안 이미지는 저장소에 넣지 않았다.
+- 화면 톤: 기보 용지. 종이색 바탕에 먹색 글, 카드 그림자 대신 가는 줄, 색은 결과(초록·벽돌색)에만. 제목·판정·큰 숫자는 바탕체(Gowun Batang), 나머지는 Pretendard. 홈의 세트는 1~5 줄이 있는 기록지로, 둔 줄에 결과가 채워지고 앞으로 올 장면은 빈칸(신호 없음). 기본 시스템 글꼴과 둥근 카드·그림자 위주의 흔한 모습이 '대충 만든 앱'처럼 보여서 바꿨다. 방향 시안은 Gemini 이미지 모델로 두 갈래를 만들어 보고 골랐다(시안 이미지는 저장소에 넣지 않음).
 
 ## 저장
 - 모두 이 기기 안(IndexedDB, 아이디만 localStorage). 서버로 보내는 것 없음.
@@ -119,4 +119,5 @@ Chess.com API는 `tests/fixtures`(내 게임 한 판, 상대 아이디는 지움
 - `vendor/cm-chessboard/`: [cm-chessboard](https://github.com/shaack/cm-chessboard) 8.15.3, MIT. 수정 없이 두고, 비상업 라이선스인 Staunty 기물 파일(`assets/pieces/staunty.svg`)만 뺐다.
 - 기물 그림(`vendor/cm-chessboard/assets/pieces/standard.svg`): Wikimedia Commons, Cburnett·Rfc1394, [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). 앱 화면 아래에 출처 표기.
 - Capacitor(`@capacitor/*`, MIT): 웹 코드를 안드로이드 앱으로 감싸는 도구. `android/`의 대부분은 Capacitor가 만든 틀.
+- `vendor/fonts/`: [Pretendard](https://github.com/orioncactus/pretendard) 1.3.9(화면 글)와 [Gowun Batang](https://github.com/yangheeryu/Gowun-Batang)(제목·판정·큰 숫자), 둘 다 SIL OFL 1.1(전문 `vendor/fonts/*-OFL.txt`). 앱이 쓰는 글자만 남겨 woff2로 줄였다(`scripts/make-fonts.py`, 합쳐 약 220KB). 글꼴은 2026-10-26 디자인 개선 요청 때 허용함.
 - cm-chessboard·기물 그림·Capacitor는 원칙("다른 서비스의 코드·그림은 쓰지 않는다")의 예외로 2026-10-25 허용함.
