@@ -1,7 +1,7 @@
 import { Engine } from './engine.js';
 import { Board } from './board.js';
 import { playScene, clockFor } from './play.js';
-import { analyzeMore, analyzeGame, findSharedGame, isMine, sideCounts, backfillScenes } from './library.js';
+import { analyzeMore, analyzeGame, findSharedGame, isMine, sideCounts, backfillScenes, requeueOldScenes } from './library.js';
 import { material } from './material.js';
 import * as store from './store.js';
 
@@ -667,6 +667,8 @@ window.addEventListener('shared', () => openShared(takeShared()));
 (async () => {
   // 예전 장면에 원래 게임 시계 정보 채우기(기보만 읽어서 금방 끝난다)
   await backfillScenes().catch(() => {});
+  // 예전 방식 장면이 있는 게임은 뒤에서 새 방식(시작 전 원래 수순, 2~4수 앞에서 섞어 시작)으로 다시 만든다
+  await requeueOldScenes().catch(() => {});
   const shared = takeShared();
   if (shared) {
     if (user) await recordDay();

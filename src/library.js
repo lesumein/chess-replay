@@ -89,10 +89,14 @@ export async function analyzeGame(engine, g, names, onScene = () => {}) {
     me: { name: me.username, rating: me.rating, result: me.result },
     opp: { name: opp.username, rating: opp.rating },
   };
+  // 다시 분석하는 게임이면 새 장면으로 덮어쓰고(같은 자리면 id가 같아 기록이 이어진다), 다 만든 뒤 남은 예전 장면을 지운다
+  const oldIds = (await store.getAll('scenes')).filter((x) => x.gameUrl === g.url).map((x) => x.id);
   const scenes = await buildScenes(engine, meta, positions, evals, side, async (scene) => {
     await store.put('scenes', scene);
     onScene(scene);
   });
+  const keep = new Set(scenes.map((x) => x.id));
+  for (const id of oldIds) if (!keep.has(id)) await store.del('scenes', id);
   await store.put('games', { ...g, status: 'done', scenes: scenes.length });
   return scenes;
 }
@@ -225,4 +229,14 @@ export async function backfillScenes() {
   }
   await store.putMany('scenes', filled);
   return filled.length;
+}
+
+// 예전 방식으로 만든 장면(시작 전 원래 수순·섞인 시작 지점이 없는 것)이 있는 게임을 다시 분석하도록 줄 세운다.
+// 돌려주는 값: 다시 분석할 게임 수
+export async function requeueOldScenes() {
+  const urls = new Set((await store.getAll('scenes')).filter((s) => s.preLine === undefined).map((s) => s.gameUrl));
+  if (!urls.size) return 0;
+  const games = (await store.getAll('games')).filter((g) => urls.has(g.url) && g.status === 'done');
+  await store.putMany('games', games.map((g) => ({ ...g, status: 'new' })));
+  return games.length;
 }

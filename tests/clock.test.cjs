@@ -25,7 +25,7 @@ const secs = (t) => { const [m, s] = t.split(':').map(Number); return m * 60 + s
     assert.match(await page.textContent('#gameInfo'), /블리츠 5\+5/);
     assert.strictEqual(await page.textContent('#clockInc'), '+5초');
     const before = secs(await page.textContent('#clock'));
-    assert.ok(Math.abs(before - Math.ceil(scene.clockAtStart)) <= 1, `시계 ${before}초 ≠ 원래 ${scene.clockAtStart}초`);
+    assert.ok(before <= Math.ceil(scene.clockAtStart) && before >= scene.clockAtStart - 4, `시계 ${before}초 ≠ 원래 ${scene.clockAtStart}초`);
     // 한 수 두면 +5초
     const legal = (await page.getAttribute('#board', 'data-legal')).split(' ');
     const sq = async (s) => { const b = await page.locator(`#board rect[data-square="${s}"]`).boundingBox(); await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); };
@@ -48,6 +48,29 @@ const secs = (t) => { const [m, s] = t.split(':').map(Number); return m * 60 + s
     const again = await page.evaluate(async () => (await (await import('./src/store.js')).getAll('scenes')).find((x) => x.ply === 27));
     assert.strictEqual(again.clockAtStart, scene.clockAtStart);
     console.log('예전 장면 채움 → 시작 때 남은 시간', again.clockAtStart, '초');
+
+    // 예전 방식 장면(시작 전 원래 수순 없음)은 뒤에서 다시 만들어진다
+    await page.evaluate(async () => {
+      const store = await import('./src/store.js');
+      const all = await store.getAll('scenes');
+      await store.putMany('scenes', all.map(({ preLine, preFen, ...rest }) => ({ ...rest, startPly: rest.ply - 8 })));
+    });
+    await page.goto(base);
+    // 게임을 다시 분석해 끝낼 때까지(새 장면엔 시작 전 수순이 있고, 시작 지점이 섞인다)
+    for (let t = 0; ; t++) {
+      const ready = await page.evaluate(async () => {
+        const store = await import('./src/store.js');
+        const games = await store.getAll('games');
+        const all = await store.getAll('scenes');
+        return games.every((g) => g.status !== 'new') && all.length > 2 && all.every((x) => Array.isArray(x.preLine));
+      });
+      if (ready) break;
+      assert.ok(t < 120, '다시 만들기가 끝나지 않음');
+      await page.waitForTimeout(1000);
+    }
+    const rebuilt = await page.evaluate(async () => (await (await import('./src/store.js')).getAll('scenes')).map((x) => `${x.ply}:${x.ply - x.startPly}`).join(' '));
+    console.log('다시 만든 장면(반수:장면까지 반수):', rebuilt);
+    assert.ok(new Set(rebuilt.split(' ').map((x) => x.split(':')[1])).size > 1, '시작 지점이 섞이지 않음');
 
     // 앱 시계로 바꾸면 추가시간 없음
     await page.evaluate(() => localStorage.setItem('clockMode', 'app'));

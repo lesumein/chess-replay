@@ -42,6 +42,7 @@ export const get = (store, key) => tx(store, 'readonly', (s) => done(s.get(key))
 export const put = (store, value, key) => tx(store, 'readwrite', (s) => done(key === undefined ? s.put(value) : s.put(value, key)));
 export const putMany = (store, values) => tx(store, 'readwrite', (s) => Promise.all(values.map((v) => done(s.put(v)))));
 export const add = (store, value) => tx(store, 'readwrite', (s) => done(s.add(value)));
+export const del = (store, key) => tx(store, 'readwrite', (s) => done(s.delete(key)));
 
 // 아이디를 바꾸면 이전 아이디의 기록은 지운다.
 export async function clearAll() {
