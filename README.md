@@ -98,7 +98,12 @@ DEPTHS=12,20 node tests/bench.test.cjs
 Chess.com API는 `tests/fixtures`(내 게임 한 판, 상대 아이디는 지움)로 대신한다.
 
 ## 법적으로 확인한 것 (2026-10-26, 법률 자문 아님)
-- **Chess.com PubAPI**: 읽기 전용 공개 API. "사용자를 괴롭히거나 서비스를 해치거나 기능·IP를 베끼지 않으면" 써도 된다는 안내([지원 문서](https://support.chess.com/en/articles/9650547-what-is-the-pubapi-and-how-do-i-use-it)). 병렬 요청은 피한다(앱은 한 번에 하나씩). **상업적 이용은 명시가 없어서, 유료 기능을 붙이기 전에 Chess.com에 문의한다.** 이름·로고로 공식 제휴처럼 보이게 하지 않는다(화면엔 "Chess.com 아이디"처럼 설명으로만).
+- **Chess.com** (원문: [PubAPI 지원 문서](https://support.chess.com/en/articles/9650547-what-is-the-pubapi-and-how-do-i-use-it), [User Agreement 2026-03-25](https://www.chess.com/legal/user-agreement))
+  - PubAPI: "사용자를 괴롭히거나 서비스를 해치거나 기능·IP를 베끼지 않으면" 사용 가능. 병렬 요청 피하기(앱은 한 번에 하나씩).
+  - 기보(UGA, 4.C): "공개되어 있고 누구나 어떤 목적으로든 접근·사용·수익화할 수 있다". 그런데 4.D의 이용 허락은 상업적 이용·데이터 수집 도구·다운로드를 "명시적으로 허락한 경우를 빼고" 제외한다. PubAPI가 그 허락 통로로 보이지만 상업 이용 범위는 적혀 있지 않다.
+  - AI·자동 접근 제한(4.D, 2026-03 추가): 자동 도구로 콘텐츠에 접근해 "경쟁 제품·서비스", 예시로 "교육 도구"를 만들거나 개선하는 것은 사전 서면 허락이 필요하다. 유료 훈련 앱은 여기에 걸릴 여지가 있다.
+  - 정리: 무료·비상업·자기 게임 복기는 위험이 낮다. **유료 기능을 붙이기 전에 Chess.com의 서면 허락을 받는다**([개발자 커뮤니티 클럽](https://www.chess.com/club/chess-com-developer-community)·비즈니스 문의). 허락이 안 되면 유료 기능은 Lichess·PGN으로 가져온 게임에만 둔다.
+  - 같은 방식으로 Chess.com 게임을 가져오는 유료 서비스(예: Chessigma)는 있지만, 허락을 받았는지는 공개된 자료로 알 수 없다. Aimchess는 Chess.com이 인수해 비교 대상이 아니다.
 - **Lichess API**: 이용약관이 API를 포함한 서비스를 "개인·상업 목적으로, 자기 앱에서" 쓰는 것을 허용하고 합리적 사용량 제한을 둔다([Terms of Service](https://lichess.org/terms-of-service)). 게임 내보내기는 CORS 허용(브라우저에서 직접). Lichess 데이터베이스는 CC0로 배포된다.
 - **공정한 플레이**: 진행 중인 게임은 분석하지 않는다(Chess.com 아카이브는 끝난 게임만, Lichess·PGN은 결과가 `*`면 거절). 엔진 분석은 끝난 게임의 복기에만 쓴다.
 - **기보 자체**: 수순은 사실 정보라 저작권 대상이 아니라고 보는 것이 일반적. 남의 기보도 공개된 것을 기기 안에서만 다룬다.
