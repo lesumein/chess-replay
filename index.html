@@ -96,6 +96,7 @@
   .dots i.good { background: var(--win); }
   .dots i.bad { background: var(--loss); }
   .dots i.now { background: var(--brand); }
+  .dots i.neutral { background: var(--faint); }
   .dots.sm { width: 84px; }
 
   /* 처음 */
@@ -288,7 +289,10 @@
   .done-hero h1 { font-family: var(--serif); font-size: 1.7rem; font-weight: 700; letter-spacing: -.02em; }
   .done-hero p { margin: 0; color: var(--muted); }
   #setDone .stats { margin-top: 0; }
-  #setDone .actions { display: grid; gap: 4px; margin-top: 4px; }
+  /* 세트 결과의 버튼은 화면 아래에 붙여 둔다(목록을 내리지 않아도 보이게) */
+  #setDone { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  #setDone .actions { position: fixed; z-index: 20; left: 50%; bottom: 0; transform: translateX(-50%); width: min(480px, 100%); display: grid; grid-template-columns: 1fr 1.8fr; gap: 8px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); background: var(--paper); border-top: 1px solid var(--rule); }
+  #setDone .actions .btn { min-height: 54px; }
 
   /* 설정 */
   dialog { border: 0; padding: 0; width: min(480px, 100%); max-width: 100%; max-height: 92dvh; margin: auto 0 0; border-radius: 14px 14px 0 0; background: var(--paper); color: var(--ink); }
@@ -434,8 +438,8 @@
     <div class="stats" id="doneStats"></div>
     <ul class="list" id="doneList"></ul>
     <div class="actions">
-      <button class="btn block" id="againBtn" type="button">한 세트 더</button>
-      <button class="btn quiet block" id="doneHomeBtn" type="button">홈으로</button>
+      <button class="btn ghost" id="doneHomeBtn" type="button">홈으로</button>
+      <button class="btn" id="againBtn" type="button">한 세트 더</button>
     </div>
   </section>
 </main>

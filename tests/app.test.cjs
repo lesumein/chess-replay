@@ -192,6 +192,10 @@ async function anyMove(page) {
     await page.waitForSelector('#setDone:not([hidden])');
     console.log('세트:', (await page.innerText('#setDone')).replace(/\s+/g, ' '));
     assert.match(await page.textContent('#doneSub'), /^5장면 모두 실제로 놓쳤던 순간이었어요$/);
+    // 버튼은 화면 아래에 붙어 있다
+    const again = await page.locator('#againBtn').boundingBox();
+    assert.ok(again.y + again.height <= page.viewportSize().height, '한 세트 더 버튼이 화면 밖');
+    assert.match(await page.textContent('#doneCountLabel'), /잘 둔 장면/);
     await page.waitForTimeout(900);
     await page.screenshot({ path: path.join(SHOTS, 'app-setdone.png'), fullPage: true });
     await page.click('#doneHomeBtn');

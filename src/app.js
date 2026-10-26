@@ -149,9 +149,17 @@ const OUTCOME = {
   found: { icon: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), tone: 'good', title: (s) => (s.fake ? '잘 넘겼어요' : s.kind === 'blunder' ? '피했어요' : '찾았어요'), good: true },
   missed: { icon: svg('<path d="M7 7l10 10M17 7 7 17"/>'), tone: 'bad', title: (s) => (s.fake ? '흔들렸어요' : s.kind === 'blunder' ? '걸렸어요' : '놓쳤어요'), good: false },
   timeout: { icon: svg('<circle cx="12" cy="13" r="7"/><path d="M12 10v3.5l2 1.5M10 3h4"/>'), tone: 'warn', title: () => '시간이 다 됐어요', good: false },
-  deviated: { icon: svg('<path d="M6 20V10a4 4 0 0 1 4-4h8M15 3l3 3-3 3"/>'), tone: 'warn', title: () => '다른 길로 갔어요', good: false },
+  deviated: { icon: svg('<path d="M6 20V10a4 4 0 0 1 4-4h8M15 3l3 3-3 3"/>'), tone: 'warn', title: () => '다른 길로 갔어요', good: null },
 };
-const outcomeOf = (o) => OUTCOME[o] ?? OUTCOME.deviated;
+// 다른 길로 가서 장면이 안 왔으면 원래 대비로 가린다: 1폰 이상 나으면 잘 둔 것, 나빠지면 흔들린 것, 그 사이면 셈에서 뺀다
+// good: true(잘 둠) | false(못 둠) | null(셈에서 뺌)
+function outcomeOf(o, gain = null) {
+  const base = OUTCOME[o] ?? OUTCOME.deviated;
+  if (base !== OUTCOME.deviated || gain == null) return base;
+  if (gain >= SAME) return { ...base, tone: 'good', title: () => '다른 길로 더 잘 뒀어요', good: true };
+  if (gain <= -SAME) return { ...base, tone: 'bad', title: () => '다른 길에서 흔들렸어요', good: false };
+  return base;
+}
 const sceneName = (s) => (s.fake ? '아무것도 없던 장면' : `${s.moveNo}수 ${s.kind === 'blunder' ? '큰 실수' : '놓친 기회'}`);
 const gainClass = (d) => (d >= SAME ? 'up' : d <= -SAME ? 'down' : 'same');
 
@@ -175,7 +183,8 @@ function dotsHtml(set, withNext, keep = false) {
   const items = !set || (setDone(set) && !keep) ? [] : set.items;
   return Array.from({ length: SET_SIZE }, (_, i) => {
     const it = items[i];
-    const cls = it ? (outcomeOf(it.outcome).good ? 'good' : 'bad') : withNext && i === items.length ? 'now' : '';
+    const g = it && outcomeOf(it.outcome, it.gain).good;
+    const cls = it ? (g ? 'good' : g === false ? 'bad' : 'neutral') : withNext && i === items.length ? 'now' : '';
     return `<i class="${cls}"></i>`;
   }).join('');
 }
@@ -218,7 +227,7 @@ async function renderHome() {
     const it = items[i];
     if (it) {
       const s = byScene.get(it.sceneId);
-      const o = outcomeOf(it.outcome);
+      const o = outcomeOf(it.outcome, it.gain);
       return `<li class="done"><span class="no">${i + 1}</span><span class="what"><span class="badge sm ${o.tone}">${o.icon}</span><span>${s ? `${esc(sceneName(s))} · ` : ''}${esc(s ? o.title(s) : '')}</span></span>${it.gain != null ? `<span class="gain ${gainClass(it.gain)}">${signed(it.gain)}</span>` : '<span></span>'}</li>`;
     }
     const next = i === items.length;
@@ -243,8 +252,8 @@ async function renderHome() {
   const seen = new Set();
   const recent = results.slice().reverse().filter((r) => byId.has(r.sceneId) && !seen.has(r.sceneId) && seen.add(r.sceneId)).slice(0, 6).map((r) => {
     const s = byId.get(r.sceneId);
-    const o = outcomeOf(r.outcome);
     const d = r.compare ? gain(r.compare) : null;
+    const o = outcomeOf(r.outcome, d);
     return `<li data-scene="${esc(s.id)}"><span class="badge sm ${o.tone}">${o.icon}</span>
       <span class="txt"><b>${esc(sceneName(s))} · ${esc(o.title(s))}</b><small>${esc(s.opp.name)} · ${esc(gameLabel(s))}</small></span>
       ${d != null ? `<span class="gain ${gainClass(d)}">${signed(d)}</span>` : ''}</li>`;
@@ -351,7 +360,7 @@ async function startScene() {
 }
 
 function showResult(scene, result, set) {
-  const o = outcomeOf(result.outcome);
+  const o = outcomeOf(result.outcome, result.compare ? gain(result.compare) : null);
   $('resultBadge').innerHTML = o.icon;
   $('resultBadge').className = `badge ${o.tone}`;
   $('resultTitle').textContent = o.title(scene);
@@ -414,13 +423,16 @@ async function showSetDone(set) {
   const [scenes, results] = await Promise.all([store.getAll('scenes'), store.getAll('results')]);
   const byId = new Map(scenes.map((s) => [s.id, s]));
   const real = set.items.filter((x) => !x.fake);
-  const found = real.filter((x) => x.outcome === 'found').length;
+  // 잘 둔 장면: 찾았거나(가짜 장면은 잘 넘겼거나) 다른 길로 가서 원래보다 1폰 이상 나은 것. 그 사이인 다른 길은 셈에서 뺀다
+  const verdicts = set.items.map((x) => outcomeOf(x.outcome, x.gain).good);
+  const good = verdicts.filter((v) => v === true).length;
+  const counted = verdicts.filter((v) => v != null).length;
   const gains = set.items.filter((x) => x.gain != null);
   const total = gains.reduce((a, x) => a + x.gain, 0);
   show('setDone');
-  $('doneCount').textContent = real.length ? `${found}/${real.length}` : `${set.items.filter((x) => x.outcome === 'found').length}/${set.items.length}`;
-  $('doneCountLabel').textContent = real.length ? '찾은 장면' : '잘 넘긴 장면';
-  const share = real.length ? found / real.length : 1;
+  $('doneCount').textContent = `${good}/${counted || set.items.length}`;
+  $('doneCountLabel').textContent = '잘 둔 장면';
+  const share = counted ? good / counted : 1;
   $('doneTitle').textContent = share >= 0.8 ? '날카로웠어요' : share >= 0.5 ? '좋은 세트였어요' : '다음엔 더 보일 거예요';
   const fakes = set.items.length - real.length;
   $('doneSub').textContent = fakes ? `${SET_SIZE}장면 중 ${fakes}개는 아무것도 없던 장면이었어요` : `${SET_SIZE}장면 모두 실제로 놓쳤던 순간이었어요`;
@@ -432,7 +444,7 @@ async function showSetDone(set) {
   $('doneList').innerHTML = set.items.map((x) => {
     const s = byId.get(x.sceneId);
     if (!s) return '';
-    const o = outcomeOf(x.outcome);
+    const o = outcomeOf(x.outcome, x.gain);
     return `<li data-scene="${esc(s.id)}"><span class="badge sm ${o.tone}">${o.icon}</span>
       <span class="txt"><b>${esc(sceneName(s))} · ${esc(o.title(s))}</b><small>${esc(s.opp.name)} · ${esc(gameLabel(s))}</small></span>
       ${x.gain != null ? `<span class="gain ${gainClass(x.gain)}">${signed(x.gain)}</span>` : ''}</li>`;
