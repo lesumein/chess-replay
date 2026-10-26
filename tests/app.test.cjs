@@ -132,7 +132,14 @@ async function anyMove(page) {
     await page.waitForSelector('#cmpMine g[data-square="f3"][data-piece="bn"]');
     const split = (await page.innerText('#cmpMoves tr.split')).replace(/\s+/g, ' ');
     console.log('갈림:', split, '·', await page.textContent('#stepInfo'), '·', await page.textContent('#cmpOrigScore'), await page.textContent('#cmpMineScore'));
-    assert.match(split, /^14\.\.\. Qd7\s*[+−]?\d+\.\d Nxf3\+\s*[+−]?\d+\.\d$/);
+    assert.match(split, /^14\.\.\. Qd7\s*[+−]?\d+\.\d Nxf3\+\s*[+−]?\d+\.\d Nxf3\+\s*[+−]?\d+\.\d$/);
+    // 좋은 수 갈래: 표에 세 번째 줄, 왼쪽 판을 좋은 수로 바꿔 볼 수 있다
+    assert.match(await page.innerText('#cmpMoves thead'), /원래\s+이번\s+좋은 수/);
+    await page.click('#cmpLeftPick [data-src="good"]');
+    await page.waitForSelector('#cmpOrig g[data-square="f3"][data-piece="bn"]');
+    await page.screenshot({ path: path.join(SHOTS, 'app-compare.png') });
+    await page.click('#cmpLeftPick [data-src="orig"]');
+    await page.waitForSelector('#cmpOrig g[data-square="d7"][data-piece="bq"]');
     await page.click('#nextStep');
     assert.strictEqual(await page.textContent('#stepInfo'), '15.');
     await page.click('#tabs [data-view="good"]');

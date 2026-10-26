@@ -173,7 +173,7 @@
   #play.comparing .board-wrap, #play.comparing .player, #play.comparing .history { display: none; }
   .cmp-boards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
   .cmp-boards figure { margin: 0; }
-  .cmp-boards figcaption { display: flex; justify-content: space-between; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+  .cmp-boards figcaption { display: flex; justify-content: space-between; align-items: center; min-height: 28px; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
   .cmp-boards figcaption b { font-variant-numeric: tabular-nums; color: var(--fg); }
   .mini { width: 100%; aspect-ratio: 1; border-radius: 4px; overflow: hidden; }
   .cmp-moves { margin-top: 10px; max-height: 210px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; }
@@ -183,7 +183,14 @@
   .cmp-moves td.n { color: var(--faint); width: 3.5em; font-variant-numeric: tabular-nums; }
   .cmp-moves td small { color: var(--faint); margin-left: 6px; font-variant-numeric: tabular-nums; }
   .cmp-moves tr.now td { background: var(--accent-soft); }
-  .cmp-moves tr.diff td.m { color: var(--warn); }
+  .cmp-moves td.m.diff { color: var(--warn); }
+  .cmp-moves td.m.better { color: var(--good); font-weight: 650; }
+  .cmp-moves table.three { font-size: .84rem; }
+  .cmp-moves table.three td { padding: 5px 5px; }
+  .cmp-moves table.three td small { display: block; margin-left: 0; font-size: .72rem; }
+  .pick { display: inline-flex; gap: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+  .pick button { font-size: .75rem; padding: 2px 7px; border-radius: 6px; color: var(--muted); }
+  .pick button[aria-pressed="true"] { background: var(--card); color: var(--fg); font-weight: 650; box-shadow: var(--shadow); }
   .cmp-moves tr.split td.n::after { content: '갈림'; display: block; font-size: .65rem; color: var(--warn); font-weight: 650; }
   .line span.split { text-decoration: underline; text-decoration-color: var(--warn); text-underline-offset: 3px; }
   .stepper { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
@@ -299,7 +306,7 @@
         <div class="line" id="lineText"></div>
         <div class="cmp" id="cmpPanel" hidden>
           <div class="cmp-boards">
-            <figure><figcaption>원래 <b id="cmpOrigScore"></b></figcaption><div class="mini" id="cmpOrig"></div></figure>
+            <figure><figcaption><span class="pick" id="cmpLeftPick"><button type="button" data-src="orig">원래</button><button type="button" data-src="good">좋은 수</button></span><b id="cmpOrigScore"></b></figcaption><div class="mini" id="cmpOrig"></div></figure>
             <figure><figcaption>이번 <b id="cmpMineScore"></b></figcaption><div class="mini" id="cmpMine"></div></figure>
           </div>
           <div class="cmp-moves" id="cmpMoves"></div>

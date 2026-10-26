@@ -312,7 +312,7 @@ function reviewTap(el) {
   let x0 = null;
   el.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
   el.addEventListener('pointerup', (e) => {
-    if (!reviewGo || x0 == null) return;
+    if (!reviewGo || x0 == null || e.target.closest('button, #cmpMoves')) return; // 버튼·수순 표는 제 할 일만
     const dx = e.clientX - x0;
     x0 = null;
     if (Math.abs(dx) > 40) return reviewGo(dx < 0 ? 1 : -1); // 밀기: 왼쪽으로 밀면 다음
@@ -346,7 +346,9 @@ function showReview(scene, review, end, cmp) {
   const mine = cmp?.mine ?? end.steps;
   let split = mine.findIndex((m, k) => orig[k]?.uci !== m.uci);
   if (split < 0) split = null;
-  const total = Math.max(orig.length, mine.length);
+  const good = cmp?.good ?? null;
+  const total = Math.max(orig.length, mine.length, good?.length ?? 0);
+  let leftSrc = 'orig'; // 왼쪽 작은 판: 원래 | 좋은 수
   const views = {
     good: review.lines.good && { ...start, steps: [...pre, ...review.lines.good], pre: pre.length, arrow: 'good', first: pre.length },
     bad: review.lines.bad && { ...start, steps: [...pre, ...review.lines.bad], pre: pre.length, arrow: 'bad', first: pre.length },
@@ -396,18 +398,25 @@ function showReview(scene, review, end, cmp) {
       const k = Math.min(step, line.length);
       return k ? line[k - 1] : { fen: start.fen, uci: start.last, cp: null };
     };
-    const [o, m] = [at(orig), at(mine)];
+    const leftLine = leftSrc === 'good' && good ? good : orig;
+    const [o, m] = [at(leftLine), at(mine)];
     cmpBoards[0].set(o.fen, [], o.uci);
     cmpBoards[1].set(m.fen, [], m.uci);
     $('cmpOrigScore').textContent = o.cp != null ? pawns(o.cp) : '';
     $('cmpMineScore').textContent = m.cp != null ? pawns(m.cp) : '';
+    for (const b of document.querySelectorAll('#cmpLeftPick button')) {
+      b.setAttribute('aria-pressed', String(b.dataset.src === leftSrc));
+      b.hidden = b.dataset.src === 'good' && !good;
+    }
     const rows = [];
     for (let k = 0; k < total; k++) {
-      const cell = (x) => (x ? `${esc(x.san)}<small>${x.cp != null ? pawns(x.cp) : ''}</small>` : '');
-      const cls = [k === step - 1 ? 'now' : '', split != null && k >= split ? 'diff' : '', k === split ? 'split' : ''].filter(Boolean).join(' ');
-      rows.push(`<tr class="${cls}" data-step="${k + 1}"><td class="n">${moveNo(k)}</td><td class="m">${cell(orig[k])}</td><td class="m">${cell(mine[k])}</td></tr>`);
+      const cell = (x, cls = '') => `<td class="m ${cls}">${x ? `${esc(x.san)}<small>${x.cp != null ? pawns(x.cp) : ''}</small>` : ''}</td>`;
+      const cls = [k === step - 1 ? 'now' : '', k === split ? 'split' : ''].filter(Boolean).join(' ');
+      const mineDiff = split != null && k >= split ? 'diff' : '';
+      const goodDiff = good?.[k] && orig[k]?.uci !== good[k].uci ? 'better' : '';
+      rows.push(`<tr class="${cls}" data-step="${k + 1}"><td class="n">${moveNo(k)}</td>${cell(orig[k])}${cell(mine[k], mineDiff)}${good ? cell(good[k], goodDiff) : ''}</tr>`);
     }
-    $('cmpMoves').innerHTML = `<table><thead><tr><th></th><th>원래</th><th>이번</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    $('cmpMoves').innerHTML = `<table class="${good ? 'three' : ''}"><thead><tr><th></th><th>원래</th><th>이번</th>${good ? '<th>좋은 수</th>' : ''}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
     $('cmpMoves').querySelector('tr.now')?.scrollIntoView({ block: 'nearest' });
   }
 
@@ -450,6 +459,12 @@ function showReview(scene, review, end, cmp) {
   };
   $('lineText').onclick = jump;
   $('cmpMoves').onclick = jump;
+  $('cmpLeftPick').onclick = (e) => {
+    const b = e.target.closest('[data-src]');
+    if (!b) return;
+    leftSrc = b.dataset.src;
+    draw();
+  };
   draw();
 }
 

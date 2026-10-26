@@ -87,6 +87,8 @@ export async function playScene(scene, engine, ui, { botDelay = 600, signal, clo
   const cmp = {
     orig: await withScores(engine, scene, rev.lines.orig ?? []),
     mine: await withScores(engine, scene, end.steps),
+    // 좋은 수 갈래: 장면까지는 원래 흐름, 장면부터 좋은 수
+    good: rev.lines.good ? await withScores(engine, scene, [...rev.prefix, ...rev.lines.good]) : null,
   };
   return { ...result, compare: check.compare, review: rev, end, cmp };
 }
