@@ -149,7 +149,7 @@ const OUTCOME = {
   found: { icon: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), tone: 'good', title: (s) => (s.fake ? '잘 넘겼어요' : s.kind === 'blunder' ? '피했어요' : '찾았어요'), good: true },
   missed: { icon: svg('<path d="M7 7l10 10M17 7 7 17"/>'), tone: 'bad', title: (s) => (s.fake ? '흔들렸어요' : s.kind === 'blunder' ? '걸렸어요' : '놓쳤어요'), good: false },
   timeout: { icon: svg('<circle cx="12" cy="13" r="7"/><path d="M12 10v3.5l2 1.5M10 3h4"/>'), tone: 'warn', title: () => '시간이 다 됐어요', good: false },
-  deviated: { icon: svg('<path d="M6 20V10a4 4 0 0 1 4-4h8M15 3l3 3-3 3"/>'), tone: 'warn', title: () => '다른 길로 갔어요', good: null },
+  deviated: { icon: svg('<path d="M6 20V10a4 4 0 0 1 4-4h8M15 3l3 3-3 3"/>'), tone: 'neutral', title: () => '다른 길로 갔어요', good: null },
 };
 // 다른 길로 가서 장면이 안 왔으면 원래 대비로 가린다: 1폰 이상 나으면 잘 둔 것, 나빠지면 흔들린 것, 그 사이면 셈에서 뺀다
 // good: true(잘 둠) | false(못 둠) | null(셈에서 뺌)
