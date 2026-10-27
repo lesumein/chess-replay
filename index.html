@@ -224,8 +224,9 @@
 
   /* 복기 */
   .review-panel { margin-top: 12px; display: grid; gap: 12px; }
-  .review-head { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1.5px solid var(--ink); }
-  .review-head b { font-family: var(--serif); font-size: 1.1rem; font-weight: 700; flex: 1; letter-spacing: -.02em; }
+  .review-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding-bottom: 10px; border-bottom: 1.5px solid var(--ink); }
+  .review-head .gain { margin-left: auto; }
+  .review-head b { font-family: var(--serif); font-size: 1.02rem; font-weight: 700; letter-spacing: -.02em; }
   .tabs { display: flex; gap: 18px; border-bottom: 1px solid var(--rule); }
   .tabs button { min-height: 40px; font-size: .9rem; color: var(--muted); font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
   .tabs button[aria-selected="true"] { color: var(--brand); font-weight: 700; border-bottom-color: var(--brand); }
@@ -280,6 +281,11 @@
   #play.reviewing { padding-bottom: 90px; }
   #play.reviewing .stepper { position: fixed; z-index: 20; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom)); width: min(448px, calc(100% - 24px)); margin: 0; padding: 6px; background: var(--sheet); border: 1px solid var(--ink); border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, .16); }
   #play.reviewing #board, #play.reviewing #cmpPanel { cursor: pointer; }
+  /* 복기 중: 판은 화면 위에 붙어 있고 수순만 그 아래로 흐른다. 이름 줄은 얇게, 시계는 감춘다 */
+  #play.reviewing .board-wrap { position: sticky; top: 0; z-index: 10; background: var(--paper); }
+  #play.reviewing .player { min-height: 40px; padding: 4px 0; }
+  #play.reviewing .player .avatar { width: 28px; height: 28px; font-size: .85rem; }
+  #play.reviewing .clock-wrap, #play.reviewing .thinking { display: none; }
   .review-panel .link { color: var(--muted); font-size: .84rem; text-align: center; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--rule); }
 
   /* 세트 끝 */
@@ -490,6 +496,7 @@
       <div>글꼴: <a href="https://github.com/orioncactus/pretendard">Pretendard</a> · <a href="https://github.com/yangheeryu/Gowun-Batang">Gowun Batang</a> (<a href="vendor/fonts/Pretendard-OFL.txt">SIL OFL 1.1</a>)</div>
       <div>기물: <a href="https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces/Standard">Wikimedia Commons</a>, Cburnett·Rfc1394 (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA 3.0</a>)</div>
       <div>게임: Chess.com 공개 API, Lichess 공개 API · 앱 소스: <a href="https://github.com/lesumein/chess-replay">github.com/lesumein/chess-replay</a> (Apache 2.0) · <a href="bench.html">분석 속도 재기</a></div>
+      <div id="version"></div>
     </section>
   </div>
 </dialog>

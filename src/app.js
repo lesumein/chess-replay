@@ -7,6 +7,7 @@ import * as store from './store.js';
 
 const ENGINE_URL = 'stockfish/stockfish-18-lite-single.js';
 const FAKE_EVERY = 4; // 장면 네 개에 하나꼴로 가짜
+const VERSION = '0.2.10'; // android/app/build.gradle의 versionName과 같게
 const SET_SIZE = 5; // 장면 다섯 개가 한 세트
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -399,7 +400,9 @@ function openReview() {
   $('review').hidden = false;
   $('play').classList.remove('done');
   $('play').classList.add('reviewing');
-  $('review').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // 판 윗변이 화면 위에 오게만 내린다(판 전체와 수순이 함께 보이게). 더 내리면 판은 위에 붙어 있다
+  const top = $('board').closest('.board-wrap').getBoundingClientRect().top + window.scrollY;
+  window.scrollTo({ top, behavior: 'smooth' });
 }
 
 async function afterResult() {
@@ -691,6 +694,7 @@ async function openSettings() {
     est ? `이 폰에 저장된 크기 약 ${Math.max(1, Math.round(est.usage / 1e6))}MB` : '',
     persisted ? '브라우저가 지우지 않도록 보관 중' : '',
   ].filter(Boolean).join(' · ');
+  $('version').textContent = `버전 ${VERSION}${NATIVE ? ' · 앱' : ' · 웹'}`;
   $('settings').showModal();
 }
 

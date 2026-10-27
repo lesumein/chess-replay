@@ -111,6 +111,19 @@ async function anyMove(page) {
     await page.click('#reviewBtn');
     await page.waitForSelector('#review:not([hidden])');
     assert.ok(await page.isHidden('#result'));
+    // 복기를 열면 판 전체와 수순이 한 화면에 같이 보인다
+    await page.waitForTimeout(700);
+    const vh0 = page.viewportSize().height;
+    const boardBox = await page.locator('#board').boundingBox();
+    const lineBox = await page.locator('#lineText').boundingBox();
+    const barTop = (await page.locator('#stepper').boundingBox()).y;
+    assert.ok(boardBox.y >= -1 && boardBox.y + boardBox.height <= vh0, `판이 잘림: ${boardBox.y}`);
+    assert.ok(lineBox.y < barTop, `수순이 안 보임: ${lineBox.y} / ${barTop}`);
+    // 더 내려도 판은 위에 붙어 있다
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(300);
+    assert.ok(Math.abs((await page.locator('#board').boundingBox()).y) <= 1, '내려도 판이 위에 붙어 있어야 함');
+    await page.mouse.wheel(0, -2000);
     // 좋은 수 수순: 시작한 판부터 장면까지(원래 흐름), 그다음 Nxf3+와 이득까지. 장면 포지션에서 열린다
     const line = await page.innerText('#lineText');
     console.log('수순:', line.replace(/\s+/g, ' '));
@@ -219,6 +232,10 @@ async function anyMove(page) {
     assert.match(stats, /1\s*일\s*연속/);
     await page.screenshot({ path: path.join(SHOTS, 'app-home.png') });
 
+    // 앱 버전이 안드로이드 versionName과 같다
+    const gradle = require('fs').readFileSync(path.join(__dirname, '../android/app/build.gradle'), 'utf8');
+    const app = require('fs').readFileSync(path.join(__dirname, '../src/app.js'), 'utf8');
+    assert.strictEqual(/VERSION = '([^']+)'/.exec(app)[1], /versionName "([^"]+)"/.exec(gradle)[1]);
     const scenes = await page.evaluate(async () => (await import('./src/store.js')).getAll('scenes'));
     console.log('장면:', scenes.map((x) => `${x.moveNo}${x.side ? '...' : '.'}${x.playedSan}→${x.fake ? '(가짜)' : x.bestSan}`).join(' '));
     assert.deepStrictEqual(errors, []);
