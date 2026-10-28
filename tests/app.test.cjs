@@ -231,6 +231,17 @@ async function anyMove(page) {
     assert.match(await page.textContent('#recent'), /14수 놓친 기회 · 찾았어요/);
     assert.match(stats, /1\s*일\s*연속/);
     await page.screenshot({ path: path.join(SHOTS, 'app-home.png') });
+    // 자유 모드: 세트 기록지 없이 바로 두기, 두는 화면 위엔 세트 칸 대신 '자유 두기'
+    await page.click('#modePick [data-mode="free"]');
+    await page.waitForFunction(() => document.querySelector('#setTitle').textContent === '자유롭게 두기');
+    assert.ok(await page.isHidden('#setRows'));
+    await page.waitForFunction(() => !document.querySelector('#playBtn').disabled);
+    await page.click('#playBtn');
+    await page.waitForSelector('#play:not([hidden])');
+    await page.waitForFunction(() => document.querySelector('#setProgress').textContent === '자유 두기');
+    await page.click('#quitBtn');
+    await page.click('#modePick [data-mode="set"]');
+    await page.waitForFunction(() => !document.querySelector('#setRows').hidden);
 
     // 앱 버전이 안드로이드 versionName과 같다
     const gradle = require('fs').readFileSync(path.join(__dirname, '../android/app/build.gradle'), 'utf8');

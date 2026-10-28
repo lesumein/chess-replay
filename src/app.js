@@ -7,7 +7,7 @@ import * as store from './store.js';
 
 const ENGINE_URL = 'stockfish/stockfish-18-lite-single.js';
 const FAKE_EVERY = 4; // 장면 네 개에 하나꼴로 가짜
-const VERSION = '0.2.10'; // android/app/build.gradle의 versionName과 같게
+const VERSION = '0.2.11'; // android/app/build.gradle의 versionName과 같게
 const SET_SIZE = 5; // 장면 다섯 개가 한 세트
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -218,10 +218,16 @@ async function renderHome() {
   const setsToday = ((await store.get('meta', 'setLog')) ?? []).filter((x) => localDay(x.at) === today).length;
 
   // 세트 기보 용지: 둔 칸은 결과, 다음 칸은 표시, 나머지는 빈칸(앞으로 올 장면은 알려 주지 않는다)
-  const going = !setDone(set) && set.items.length > 0;
+  const free = playMode() === 'free';
+  for (const b of $('modePick').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.mode === playMode()));
+  const going = !free && !setDone(set) && set.items.length > 0;
   const date = new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
   $('setEyebrow').textContent = setsToday ? `${date} · 오늘 ${setsToday}세트 완료` : date;
-  $('setTitle').textContent = going ? `다섯 장면 중 ${set.items.length}개를 뒀어요` : setsToday ? '한 세트 더 둘까요?' : '오늘의 다섯 장면';
+  $('setTitle').textContent = free ? '자유롭게 두기' : going ? `다섯 장면 중 ${set.items.length}개를 뒀어요` : setsToday ? '한 세트 더 둘까요?' : '오늘의 다섯 장면';
+  $('setLead').textContent = free
+    ? '세트 없이 장면을 하나씩 이어서 둡니다. 어디가 그 순간인지는 여전히 모른 채.'
+    : '어디가 그 순간인지 모른 채 둡니다. 가끔은 아무 일도 없는 장면이에요.';
+  $('setRows').hidden = free;
   const byScene = new Map(scenes.map((s) => [s.id, s]));
   const items = going ? set.items : [];
   $('setRows').innerHTML = Array.from({ length: SET_SIZE }, (_, i) => {
@@ -246,7 +252,7 @@ async function renderHome() {
     <div><b>${streak}<small>일</small></b><span>연속</span></div>`;
   const next = await nextScene();
   $('playBtn').disabled = !next;
-  $('playBtn').textContent = !next ? '장면을 만드는 중…' : going ? '이어서 두기' : remaining ? '세트 시작' : '못 찾은 장면 다시 두기';
+  $('playBtn').textContent = !next ? '장면을 만드는 중…' : going ? '이어서 두기' : !remaining ? '못 찾은 장면 다시 두기' : free ? '두기' : '세트 시작';
 
   // 최근 장면: 누르면 그 장면을 다시 둔다
   const byId = new Map(scenes.map((s) => [s.id, s]));
@@ -314,7 +320,7 @@ async function startScene() {
   $('review').hidden = true;
   const cur = await currentSet();
   const n = setDone(cur) ? 1 : cur.items.length + 1;
-  $('setProgress').innerHTML = `<span class="dots sm">${dotsHtml(cur, true)}</span>세트 ${n}/${SET_SIZE}`;
+  $('setProgress').innerHTML = playMode() === 'free' ? '자유 두기' : `<span class="dots sm">${dotsHtml(cur, true)}</span>세트 ${n}/${SET_SIZE}`;
   const meColor = scene.side ? 'b' : 'w';
   const oppColor = scene.side ? 'w' : 'b';
   $('opp').innerHTML = `${esc(scene.opp.name)}${scene.opp.rating ? `<span class="rating">${scene.opp.rating}</span>` : ''}`;
@@ -354,9 +360,12 @@ async function startScene() {
   $('board').onclick = null;
   const { text, review, end, ...record } = result;
   await store.add('results', record);
-  const set = await addToSet(scene, result);
-  $('setProgress').innerHTML = `<span class="dots sm">${dotsHtml(set, false, true)}</span>세트 ${set.items.length}/${SET_SIZE}`;
-  if (set.items.length === SET_SIZE) await logSet(set);
+  // 자유 모드는 세트에 넣지 않는다
+  const set = playMode() === 'free' ? null : await addToSet(scene, result);
+  if (set) {
+    $('setProgress').innerHTML = `<span class="dots sm">${dotsHtml(set, false, true)}</span>세트 ${set.items.length}/${SET_SIZE}`;
+    if (set.items.length === SET_SIZE) await logSet(set);
+  }
   showResult(scene, result, set);
 }
 
@@ -386,7 +395,7 @@ function showResult(scene, result, set) {
   $('reviewGain').textContent = c ? `원래 대비 ${signed(d)}` : '';
   $('reviewGain').className = `gain ${c ? gainClass(d) : ''}`;
 
-  const last = set.items.length === SET_SIZE;
+  const last = set?.items.length === SET_SIZE;
   for (const b of [$('nextBtn'), $('reviewNextBtn')]) b.textContent = last ? '세트 결과 보기' : '다음 장면';
   showReview(scene, result.review, result.end, result.cmp);
   $('resultLink').href = `${scene.gameUrl}?move=${scene.ply + 1}`;
@@ -406,7 +415,7 @@ function openReview() {
 }
 
 async function afterResult() {
-  const set = await currentSet();
+  const set = playMode() === 'free' ? null : await currentSet();
   if (set?.items.length === SET_SIZE) return showSetDone(set);
   startScene();
 }
@@ -720,6 +729,17 @@ function saveAliases(list) {
 const myNames = () => [user, ...aliases()];
 
 // 시계: 'app'(내 수 하나에 20초꼴) | 'original'(원래 게임에서 그때 남은 시간 + 수당 추가시간)
+// 두는 방식: 'set'(다섯 장면 한 세트) | 'free'(세트 없이 계속)
+function playMode() {
+  try { return localStorage.getItem('playMode') || 'set'; } catch { return 'set'; }
+}
+$('modePick').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mode]');
+  if (!b) return;
+  try { localStorage.setItem('playMode', b.dataset.mode); } catch {}
+  renderHome();
+});
+
 function clockMode() {
   try { return localStorage.getItem('clockMode') || 'app'; } catch { return 'app'; }
 }

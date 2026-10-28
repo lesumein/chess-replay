@@ -119,6 +119,9 @@
   .wordmark { display: flex; align-items: center; gap: 9px; }
   .wordmark img { width: 28px; height: 28px; border-radius: 7px; }
   .wordmark h1 { font-family: var(--serif); font-size: 1.2rem; font-weight: 700; letter-spacing: -.02em; }
+  .mode-pick { display: flex; gap: 18px; margin-bottom: 0; }
+  .mode-pick button { min-height: 40px; font-size: .9rem; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; }
+  .mode-pick button[aria-pressed="true"] { color: var(--brand); font-weight: 700; border-bottom-color: var(--brand); }
   .masthead { padding: 18px 0 20px; border-top: 1.5px solid var(--ink); }
   .masthead .display { font-size: 2rem; margin-top: 8px; }
   .streak { color: var(--brand); font-weight: 700; }
@@ -350,6 +353,10 @@
       </button>
     </div>
 
+    <div class="mode-pick" id="modePick" role="group" aria-label="두는 방식">
+      <button type="button" data-mode="set">세트 · 다섯 장면</button>
+      <button type="button" data-mode="free">자유롭게</button>
+    </div>
     <header class="masthead">
       <span class="eyebrow" id="setEyebrow"></span>
       <h2 class="display" id="setTitle">오늘의 다섯 장면</h2>
